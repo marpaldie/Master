@@ -1,0 +1,501 @@
+---
+title: "PRÁCTICA 2- Patrones Puntuales"
+author: "María Pallares Diez"
+date: "10/03/2025"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo=FALSE)
+  library(knitr)
+  library(spatstat)
+```
+
+
+## Introducción
+
+En esta práctica realizaremos un estudio descriptivo de un patrón puntual empleando métodos basados en quadrats y métodos de distancia. En esta práctica utilizaremos las funciones programadas recogidas en el fichero $\texttt{utilpp.r}$ y que pueden ser activadas con el comando $\texttt{source()}$.
+Exploraremos inicialmente 4 patrones puntuales diferentes: 
+
+
+```{r, warning=FALSE, message=FALSE}
+# Lectura de los patrones puntuales
+robles <- matrix(scan('robles.d'), ncol=2, byrow=TRUE)
+arces <- matrix(scan('arces.d'), ncol=2, byrow=TRUE)
+secuoyas <- matrix(scan('secuoyas.d'), ncol=2, byrow=TRUE)
+source('pinos.r')  # Carga el dataset de pinos
+```
+
+# Conteos por quadrats
+
+La independencia entre las localizaciones de los puntos conduce al concepto de aleatoriedad espacial completa. Las desviaciones con respecto a esta situación pueden darse hacia una mayor regularidad, propiciando la separación de los puntos, o hacia un mayor agrupamiento, creando grupos de puntos muy próximos.
+
+```{r, warning=FALSE, message=FALSE, fig.width=6, fig.height=6, fig.align="center"}
+# Cargamos las funciones
+source('utilpp.r')
+par(mfrow=c(2,2))
+plot(robles, pch=20, xlab='x', ylab='y', main="Robles")
+plot(arces, pch=20, xlab='x', ylab='y', main="Arces")
+plot(secuoyas, pch=20, xlab='x', ylab='y', main="Secuoyas")
+plot(pinos, pch=20, xlab='x', ylab='y', main="Pinos")
+```
+
+- **Robles**: Distribución bastante uniforme pero con algunas variaciones en densidad. 
+- **Arces**: Patrones agrupados, con zonas más densas y otras más vacías.
+- **Secuoyas**: También presentan agrupamiento, con mayor concentración en una parte del área.
+- **Pinos**: Distribución más regular y dispersa, con los puntos más equidistantes.
+
+## Análisis mediante un grid de quadrats
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=12, fig.align="center"}
+par(mfrow=c(2,2), pty="s")
+plot(robles, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", xaxs="i", yaxs="i", pch=20, main='Robles')
+dibu.qua(4,4)
+plot(arces, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", xaxs="i", yaxs="i", pch=20, main='Arces')
+dibu.qua(4,4)
+plot(secuoyas, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", xaxs="i", yaxs="i", pch=20, main='Secuoyas')
+dibu.qua(4,4)
+plot(pinos, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", xaxs="i", yaxs="i", pch=20, main='Pinos')
+dibu.qua(4,4)
+```
+
+Se han aplicado **quadrats (4x4)** a los patrones espaciales de **robles, arces, secuoyas y pinos** para evaluar la uniformidad de su distribución. En la imagen se observan diferencias entre especies:
+
+- **Robles**: Distribución relativamente uniforme, pero con algunas variaciones locales.
+
+- **Arces**: Presenta agrupamientos evidentes en ciertas regiones.
+
+- **Secuoyas**: Muestra algunas áreas con mayor densidad de puntos.
+
+- **Pinos**: Parece ser el más uniforme y disperso de los cuatro.
+
+```{r}
+chisq.test(cuenta.qua(robles,4,4))
+chisq.test(cuenta.qua(arces,4,4))
+chisq.test(cuenta.qua(secuoyas,4,4))
+chisq.test(cuenta.qua(pinos,4,4))
+```
+
+El test de **Pearson Chi-cuadrado** evalúa si la distribución de los puntos en los quadrats sigue una distribución homogénea esperada bajo **aleatoriedad espacial completa (CSR)**.
+
+- **Arces y secuoyas** tienen **p-valores muy pequeños**, lo que indica que **su distribución no es aleatoria** y presentan agrupamientos.
+
+- **Robles** también muestra evidencia de **cierta estructura no aleatoria**, aunque con menor intensidad.
+
+- **Pinos**, con un **p-valor alto (0.7798)**, no rechaza la hipótesis de aleatoriedad, lo que sugiere que su distribución sigue un patrón más uniforme.
+
+
+## Análisis mediante un muestreo con quadrats aleatorios
+
+La exploración por quadrats aleatorios permite calcular distintos índices de agrupamiento, destacando la varianza relativa, el índice de David-Moore, el índice de desigualdad de Lloyd, y el de Morisita.
+
+```{r, warning=FALSE, message=FALSE, fig.width=8, fig.height=8, fig.align="center"}
+par(mfrow=c(2,2))
+centros_robles <- Simqalea(20,0.08)
+plot(robles, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", xaxs="i", yaxs="i", pch=20, main='Robles')
+dibalea.qua(centros_robles)
+nump_robles <- cupenl.qua(robles, centros_robles)
+indices.qua(nump_robles)
+
+centros_arces <- Simqalea(20,0.08)
+plot(arces, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", xaxs="i", yaxs="i", pch=20, main='Arces')
+dibalea.qua(centros_arces)
+nump_arces <- cupenl.qua(arces, centros_arces)
+indices.qua(nump_arces)
+
+centros_secuoyas <- Simqalea(20,0.08)
+plot(secuoyas, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", xaxs="i", yaxs="i", pch=20, main='Secuoyas')
+dibalea.qua(centros_secuoyas)
+nump_secuoyas <- cupenl.qua(secuoyas, centros_secuoyas)
+indices.qua(nump_secuoyas)
+
+centros_pinos <- Simqalea(20,0.08)
+plot(pinos, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", xaxs="i", yaxs="i", pch=20, main='Pinos')
+dibalea.qua(centros_pinos)
+nump_pinos <- cupenl.qua(pinos, centros_pinos)
+indices.qua(nump_pinos)
+```
+
+Se han aplicado **quadrats aleatorios** (círculos azules) para evaluar la distribución espacial de los árboles. En la imagen se observa:
+
+- **Robles**: Distribución relativamente homogénea con ligeras variaciones locales.
+
+- **Arces y secuoyas**: Patrones claramente **agrupados**, con regiones de mayor concentración de puntos.
+
+- **Pinos**: Patrón más regular y uniforme, sin agrupamientos evidentes.
+
+
+Se calcularon distintos **índices de agrupamiento** para evaluar la variabilidad de los puntos en los quadrats aleatorios
+
+- **Arces y secuoyas** tienen valores altos en todos los índices, lo que confirma su **distribución agrupada**.
+
+- **Robles** muestra valores más cercanos a 1, indicando una **distribución más homogénea pero con ligera variabilidad**.
+
+- **Pinos** tienen los valores más bajos, lo que sugiere una distribución **más uniforme y dispersa**.
+
+
+## Distancias entre sucesos
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=8, fig.align="center"}
+distan_robles <- sort(dist(robles))
+distan_arces <- sort(dist(arces))
+distan_secuoyas <- sort(dist(secuoyas))
+distan_pinos <- sort(dist(pinos))
+
+par(mfrow=c(2,2))
+hist(distan_robles, main="Distancias Robles")
+hist(distan_arces, main="Distancias Arces")
+hist(distan_secuoyas, main="Distancias Secuoyas")
+hist(distan_pinos, main="Distancias Pinos")
+
+# La función genérica ecdf() calcula la función de distribución acumulada empírica 
+Hgorro_robles <- ecdf(distan_robles)
+Hgorro_arces <- ecdf(distan_arces)
+Hgorro_secuoyas <- ecdf(distan_secuoyas)
+Hgorro_pinos <- ecdf(distan_pinos)
+
+par(mfrow=c(2,2))
+plot(Hgorro_robles, verticals= TRUE, do.p = FALSE, main="ECDF Robles")
+plot(Hgorro_arces, verticals= TRUE, do.p = FALSE, main="ECDF Arces")
+plot(Hgorro_secuoyas, verticals= TRUE, do.p = FALSE, main="ECDF Secuoyas")
+plot(Hgorro_pinos, verticals= TRUE, do.p = FALSE, main="ECDF Pinos")
+```
+
+Se presentan los histogramas de las distancias entre sucesos para **robles, arces, secuoyas y pinos**. Las principales observaciones son:
+
+- **Robles, arces y secuoyas** muestran distribuciones similares, con un pico central alrededor de 0.6, lo que indica que la mayoría de los puntos tienen una distancia típica en ese rango.
+
+- **Pinos** presentan un patrón diferente, con una mayor concentración en distancias más grandes, lo que sugiere un patrón más regular y disperso.
+
+
+Las funciones ECDF muestran cómo se distribuyen las distancias acumuladas en los cuatro conjuntos:
+
+- **Robles, arces y secuoyas** tienen curvas similares, indicando que los eventos tienden a estar más cerca unos de otros, lo que puede sugerir agrupamiento.
+
+- **Pinos** tienen una pendiente más suave, lo que sugiere que los puntos están más equidistantes, confirmando una distribución más uniforme.
+
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=14, fig.align="center"}
+par(mfrow=c(2,2))
+plot(sapply(distan_robles,Ht),Hgorro_robles(distan_robles),type="l", main='Robles')
+abline(0,1,col=2)
+lims_robles<-Henvl(19,robles)
+lines(sapply(lims_robles$xl,Ht),Hgorro_robles(distan_robles),col="green")
+lines(sapply(lims_robles$xu,Ht),Hgorro_robles(distan_robles),col="green")
+
+plot(sapply(distan_arces,Ht),Hgorro_arces(distan_arces),type="l", main='Arces')
+abline(0,1,col=2)
+lims_arces<-Henvl(19,arces)
+lines(sapply(lims_arces$xl,Ht),Hgorro_arces(distan_arces),col="green")
+lines(sapply(lims_arces$xu,Ht),Hgorro_arces(distan_arces),col="green")
+
+plot(sapply(distan_secuoyas,Ht),Hgorro_secuoyas(distan_secuoyas),type="l", main='Secuoyas')
+abline(0,1,col=2)
+lims_secuoyas<-Henvl(19,secuoyas)
+lines(sapply(lims_secuoyas$xl,Ht),Hgorro_secuoyas(distan_secuoyas),col="green")
+lines(sapply(lims_secuoyas$xu,Ht),Hgorro_secuoyas(distan_secuoyas),col="green")
+
+plot(sapply(distan_pinos,Ht),Hgorro_pinos(distan_pinos),type="l", main='Pinos')
+abline(0,1,col=2)
+lims_pinos<-Henvl(19,pinos)
+lines(sapply(lims_pinos$xl,Ht),Hgorro_pinos(distan_pinos),col="green")
+lines(sapply(lims_pinos$xu,Ht),Hgorro_pinos(distan_pinos),col="green")
+```
+
+En los gráficos se compara la función de distribución acumulada empírica con la función teórica **\( H_t \)** (línea roja). Las líneas verdes representan los intervalos obtenidos mediante simulaciones bajo un **proceso de Poisson homogéneo**.
+
+Los resultados muestran tres comportamientos distintos:
+
+- **Pinos** siguen casi exactamente la línea roja, lo que indica que su distribución es **totalmente aleatoria y homogénea**, sin signos de agrupamiento o separación entre individuos.
+
+- **Robles** están cerca de la aleatoriedad, pero con ligeras desviaciones, lo que sugiere que aunque su distribución es relativamente uniforme, podría haber cierta influencia de la competencia o del entorno.
+
+- **Arces y secuoyas** presentan **curvas empíricas por encima de la línea roja**, lo que indica **agrupamiento**. En estos casos, la presencia de un árbol aumenta la probabilidad de encontrar otro cerca, posiblemente debido a la dispersión de semillas o factores ambientales.
+
+
+## Distancias al vecino más próximo
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=8, fig.align="center"}
+# La función calcdvmp() calcula las distancias al vecino más próximo
+distvmp_robles <- sort(calcdvmp(robles))
+distvmp_arces <- sort(calcdvmp(arces))
+distvmp_secuoyas <- sort(calcdvmp(secuoyas))
+distvmp_pinos <- sort(calcdvmp(pinos))
+
+par(mfrow=c(2,2))
+hist(distvmp_robles, main="Vecino más próximo Robles")
+hist(distvmp_arces, main="Vecino más próximo Arces")
+hist(distvmp_secuoyas, main="Vecino más próximo Secuoyas")
+hist(distvmp_pinos, main="Vecino más próximo Pinos")
+
+# La función genérica ecdf() calcula la función de distribución acumulada empírica
+Ggorro_robles <- ecdf(distvmp_robles)
+Ggorro_arces <- ecdf(distvmp_arces)
+Ggorro_secuoyas <- ecdf(distvmp_secuoyas)
+Ggorro_pinos <- ecdf(distvmp_pinos)
+
+par(mfrow=c(2,2))
+plot(Ggorro_robles, verticals= TRUE, do.p = FALSE, main="ECDF Vecino más próximo Robles")
+plot(Ggorro_arces, verticals= TRUE, do.p = FALSE, main="ECDF Vecino más próximo Arces")
+plot(Ggorro_secuoyas, verticals= TRUE, do.p = FALSE, main="ECDF Vecino más próximo Secuoyas")
+plot(Ggorro_pinos, verticals= TRUE, do.p = FALSE, main="ECDF Vecino más próximo Pinos")
+
+```
+
+En los histogramas y funciones de distribución acumulada empírica (ECDF) se analiza la distancia entre cada árbol y su vecino más cercano.
+
+- **Robles, arces y secuoyas** presentan valores de distancia muy pequeños, lo que indica que los árboles suelen estar **muy cerca unos de otros**, lo que sugiere **agrupamiento**.
+
+- **Pinos** tienen distancias más grandes y distribuidas de manera más uniforme, lo que sugiere que los árboles mantienen cierta **separación regular**, indicando **inhibición espacial**.
+
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=12, fig.align="center"}
+# Compararemos la distribución empírica con la teórica Gt()
+par(mfrow=c(2,2))
+plot(sapply(distvmp_robles, Gt, nrow(robles)), Ggorro_robles(distvmp_robles), type="l", main="Comparación Robles")
+abline(0,1,col=2)
+lims_robles <- Genvl(19, robles)
+lines(sapply(lims_robles$xl, Gt, nrow(robles)), Ggorro_robles(distvmp_robles), col="green")
+lines(sapply(lims_robles$xu, Gt, nrow(robles)), Ggorro_robles(distvmp_robles), col="green")
+
+plot(sapply(distvmp_arces, Gt, nrow(arces)), Ggorro_arces(distvmp_arces), type="l", main="Comparación Arces")
+abline(0,1,col=2)
+lims_arces <- Genvl(19, arces)
+lines(sapply(lims_arces$xl, Gt, nrow(arces)), Ggorro_arces(distvmp_arces), col="green")
+lines(sapply(lims_arces$xu, Gt, nrow(arces)), Ggorro_arces(distvmp_arces), col="green")
+
+plot(sapply(distvmp_secuoyas, Gt, nrow(secuoyas)), Ggorro_secuoyas(distvmp_secuoyas), type="l", main="Comparación Secuoyas")
+abline(0,1,col=2)
+lims_secuoyas <- Genvl(19, secuoyas)
+lines(sapply(lims_secuoyas$xl, Gt, nrow(secuoyas)), Ggorro_secuoyas(distvmp_secuoyas), col="green")
+lines(sapply(lims_secuoyas$xu, Gt, nrow(secuoyas)), Ggorro_secuoyas(distvmp_secuoyas), col="green")
+
+plot(sapply(distvmp_pinos, Gt, nrow(pinos)), Ggorro_pinos(distvmp_pinos), type="l", main="Comparación Pinos")
+abline(0,1,col=2)
+lims_pinos <- Genvl(19, pinos)
+lines(sapply(lims_pinos$xl, Gt, nrow(pinos)), Ggorro_pinos(distvmp_pinos), col="green")
+lines(sapply(lims_pinos$xu, Gt, nrow(pinos)), Ggorro_pinos(distvmp_pinos), col="green")
+
+```
+
+- **Robles y secuoyas** siguen de cerca la línea roja, lo que indica que su distribución está **cercana a un proceso de Poisson homogéneo**, sin una fuerte tendencia al agrupamiento o a la inhibición.
+
+- **Arces** presentan una clara desviación por encima de la línea roja, lo que confirma un **patrón de agrupamiento**, es decir, los árboles están más juntos de lo esperado bajo un proceso aleatorio.
+
+- **Pinos** muestran una curva empírica por **debajo de la línea roja**, lo que indica **inhibición**, es decir, los árboles tienden a mantener una separación mínima entre sí.
+
+Estos resultados refuerzan los análisis previos y confirman que cada especie sigue un patrón espacial distinto.
+
+
+## Distancias de un punto al suceso más próximo
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=8, fig.align="center"}
+# La función calcdpsmp() calcula las distancias desde 8*8 puntos aleatorios a los sucesos más próximos
+distpsmp_robles <- sort(caldpsmp(robles, 8))
+distpsmp_arces <- sort(caldpsmp(arces, 8))
+distpsmp_secuoyas <- sort(caldpsmp(secuoyas, 8))
+distpsmp_pinos <- sort(caldpsmp(pinos, 8))
+
+par(mfrow=c(2,2))
+hist(distpsmp_robles, main="Distancia punto-sucesor Robles")
+hist(distpsmp_arces, main="Distancia punto-sucesor Arces")
+hist(distpsmp_secuoyas, main="Distancia punto-sucesor Secuoyas")
+hist(distpsmp_pinos, main="Distancia punto-sucesor Pinos")
+
+# La función genérica ecdf() calcula la función de distribución acumulada empírica
+Fgorro_robles <- ecdf(distpsmp_robles)
+Fgorro_arces <- ecdf(distpsmp_arces)
+Fgorro_secuoyas <- ecdf(distpsmp_secuoyas)
+Fgorro_pinos <- ecdf(distpsmp_pinos)
+
+par(mfrow=c(2,2))
+plot(Fgorro_robles, verticals= TRUE, do.p = FALSE, main="ECDF Distancia Robles")
+plot(Fgorro_arces, verticals= TRUE, do.p = FALSE, main="ECDF Distancia Arces")
+plot(Fgorro_secuoyas, verticals= TRUE, do.p = FALSE, main="ECDF Distancia Secuoyas")
+plot(Fgorro_pinos, verticals= TRUE, do.p = FALSE, main="ECDF Distancia Pinos")
+
+```
+
+- **Arces y secuoyas** presentan muchas distancias pequeñas, indicando **agrupamiento**. Esto sugiere que cualquier punto aleatorio tiene una alta probabilidad de estar cerca de un árbol.
+
+- **Robles** muestran una distribución más uniforme de distancias, lo que indica un patrón **menos agrupado pero tampoco completamente aleatorio**.
+
+- **Pinos** presentan distancias más grandes y mayor variabilidad, lo que sugiere **inhibición**, es decir, los árboles tienden a evitar ubicaciones muy cercanas entre sí.
+
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=12, fig.align="center"}
+# Compararemos la distribución empírica con la teórica Gt()
+par(mfrow=c(2,2))
+plot(sapply(distpsmp_robles, Gt, nrow(robles)), Fgorro_robles(distpsmp_robles), type="l", main="Comparación Robles")
+abline(0,1,col=2)
+lims_robles <- Fenvl(19, robles, 8)
+lines(sapply(lims_robles$xl, Gt, nrow(robles)), Fgorro_robles(distpsmp_robles), col="green")
+lines(sapply(lims_robles$xu, Gt, nrow(robles)), Fgorro_robles(distpsmp_robles), col="green")
+
+plot(sapply(distpsmp_arces, Gt, nrow(arces)), Fgorro_arces(distpsmp_arces), type="l", main="Comparación Arces")
+abline(0,1,col=2)
+lims_arces <- Fenvl(19, arces, 8)
+lines(sapply(lims_arces$xl, Gt, nrow(arces)), Fgorro_arces(distpsmp_arces), col="green")
+lines(sapply(lims_arces$xu, Gt, nrow(arces)), Fgorro_arces(distpsmp_arces), col="green")
+
+plot(sapply(distpsmp_secuoyas, Gt, nrow(secuoyas)), Fgorro_secuoyas(distpsmp_secuoyas), type="l", main="Comparación Secuoyas")
+abline(0,1,col=2)
+lims_secuoyas <- Fenvl(19, secuoyas, 8)
+lines(sapply(lims_secuoyas$xl, Gt, nrow(secuoyas)), Fgorro_secuoyas(distpsmp_secuoyas), col="green")
+lines(sapply(lims_secuoyas$xu, Gt, nrow(secuoyas)), Fgorro_secuoyas(distpsmp_secuoyas), col="green")
+
+plot(sapply(distpsmp_pinos, Gt, nrow(pinos)), Fgorro_pinos(distpsmp_pinos), type="l", main="Comparación Pinos")
+abline(0,1,col=2)
+lims_pinos <- Fenvl(19, pinos, 8)
+lines(sapply(lims_pinos$xl, Gt, nrow(pinos)), Fgorro_pinos(distpsmp_pinos), col="green")
+lines(sapply(lims_pinos$xu, Gt, nrow(pinos)), Fgorro_pinos(distpsmp_pinos), col="green")
+
+```
+
+- **Robles y secuoyas** tienen curvas empíricas cercanas a la línea roja, con ligeras desviaciones. Esto indica que su distribución es **moderadamente cercana a un proceso aleatorio**, aunque con cierta variabilidad.
+
+- **Arces** muestran una curva empírica por **encima de la línea roja**, lo que indica **agrupamiento**, es decir, la distancia entre un punto aleatorio y el árbol más cercano es menor de lo esperado en un proceso aleatorio.
+
+- **Pinos** tienen una curva empírica por **debajo de la línea roja**, lo que sugiere **inhibición**, es decir, los árboles evitan ubicarse demasiado cerca de un punto aleatorio, manteniendo una separación mínima.
+
+
+## Estimación de la intensidad
+
+La intensidad se define como el número promedio de puntos por unidad de área. En este análisis, se han calculado las intensidades de los patrones puntuales de **robles, arces, secuoyas y pinos**.
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=12, fig.align="center"}
+# Convertir los datos en objetos de patrón espacial (ppp)
+pat_robles <- ppp(robles[,1], robles[,2], xlim=c(0,1), ylim=c(0,1))
+pat_arces <- ppp(arces[,1], arces[,2], xlim=c(0,1), ylim=c(0,1))
+pat_secuoyas <- ppp(secuoyas[,1], secuoyas[,2], xlim=c(0,1), ylim=c(0,1))
+pat_pinos <- ppp(pinos[,1], pinos[,2], xlim=c(0,1), ylim=c(0,1))
+
+# Resumen de los patrones espaciales
+summary(pat_robles)
+summary(pat_arces)
+summary(pat_secuoyas)
+summary(pat_pinos)
+
+# Graficar los patrones espaciales
+par(mfrow=c(2,2))
+plot(pat_robles, main="Patrón Robles")
+plot(pat_arces, main="Patrón Arces")
+plot(pat_secuoyas, main="Patrón Secuoyas")
+plot(pat_pinos, main="Patrón Pinos")
+
+```
+
+Se observa que los **robles** presentan la mayor intensidad, con **929 puntos por unidad de área**, lo que indica una alta densidad de árboles en la región. Le siguen **secuoyas (703)** y **arces (514)**, mientras que los **pinos (71)** tienen la menor intensidad, lo que sugiere una distribución más dispersa.
+
+Los gráficos muestran la distribución de los puntos en un área cuadrada:
+
+- **Robles y secuoyas** presentan una **distribución densa** con muchas regiones con alta concentración de puntos.
+
+- **Arces** muestran cierta variabilidad en la densidad, con algunas zonas más pobladas que otras.
+
+- **Pinos** tienen una **distribución dispersa**, lo que confirma la baja intensidad observada en la tabla.
+
+
+```{r, warning=FALSE, message=FALSE, fig.width=12, fig.height=12, fig.align="center"}
+# Calcular la densidad de intensidad para cada conjunto de datos
+den_robles <- density(pat_robles)
+den_arces <- density(pat_arces)
+den_secuoyas <- density(pat_secuoyas)
+den_pinos <- density(pat_pinos)
+
+# Graficar la densidad estimada
+par(mfrow=c(2,2))
+plot(den_robles, main="Intensidad Robles")
+contour(den_robles, add = TRUE)
+
+plot(den_arces, main="Intensidad Arces")
+contour(den_arces, add = TRUE)
+
+plot(den_secuoyas, main="Intensidad Secuoyas")
+contour(den_secuoyas, add = TRUE)
+
+plot(den_pinos, main="Intensidad Pinos")
+contour(den_pinos, add = TRUE)
+
+```
+
+
+Los gráficos muestran la **distribución espacial de la intensidad** de los árboles en el área de estudio. La escala de colores representa la densidad de puntos, donde el **amarillo indica áreas de mayor concentración** y el **azul representa regiones menos densas**.
+
+- **Robles**: Presentan una **distribución bastante uniforme**, pero con algunas áreas de mayor densidad. Se observa una alta concentración en ciertas regiones del mapa.
+
+- **Arces**: Muestran un **patrón de agrupamiento**, con zonas de alta densidad rodeadas de áreas menos pobladas. Esto refuerza la idea de un **proceso de cluster**.
+
+- **Secuoyas**: Su distribución es similar a los arces, con agrupaciones bien definidas y zonas de baja densidad en los bordes.
+
+- **Pinos**: La densidad es baja y bastante homogénea, lo que confirma que los árboles siguen un **patrón disperso e inhibido**, sin grandes acumulaciones.
+
+
+## Discusión sobre los Modelos de Procesos Puntuales
+
+A partir de los análisis realizados y basándonos en la teoría, podemos interpretar los patrones observados en los datos de **robles, arces, secuoyas y pinos** en términos de modelos de **procesos puntuales**.
+
+### **1. Robles - Proceso de Poisson No Homogéneo**
+
+El análisis de intensidad sugiere que los robles están **distribuidos de manera no homogénea**, con ciertas áreas más densas. Esto coincide con un **Proceso de Poisson No Homogéneo**, donde la intensidad varía en el espacio y los puntos aparecen de forma independiente en zonas de alta probabilidad.
+
+- **Evidencia**:  
+
+  - **Test de Chi-cuadrado**: Indica que los datos **se desvían de una distribución completamente aleatoria** (p-valor < 0.05).
+  - **Mapa de intensidad**: Presenta zonas con mayor densidad, lo que sugiere variaciones en la intensidad espacial.
+  - **Índices de agrupamiento**:
+  - **Varianza relativa = 1.677** (mayor a 1, lo que indica cierta agregación).
+  - **Índice de Morisita = 0.0518** (bajo, indicando que no hay agrupación fuerte).
+  - **Desigualdad de Lloyd ≈ 1**, lo que **no sugiere un agrupamiento significativo**.
+  - **Distribución de distancias**: No muestra una repulsión clara, pero tampoco una estructura completamente homogénea.
+ 
+
+---
+
+### **2. Arces - Proceso de Agrupación de Poisson**
+
+Los arces muestran **patrones de agrupamiento** bien definidos, con zonas de alta concentración separadas por áreas más vacías. Esto sugiere un **Proceso de Agrupación de Poisson**, donde algunos puntos iniciales generan grupos de sucesos alrededor de ellos.
+
+- **Evidencia**:  
+
+  - **Índices de agrupamiento**:
+  - **Varianza relativa = 5.05**, indicando un **agrupamiento fuerte**.
+  - **Índice de Morisita y David-Moore elevados**, lo que confirma la existencia de grupos.
+  - **Test de Chi-cuadrado**: Rechaza la hipótesis de aleatoriedad (p-valor < 0.001).
+  - **Mapa de intensidad**: Claramente define regiones con una **alta concentración de sucesos**.
+  - **Distribución de distancias al vecino más próximo**: **Predominio de distancias muy cortas**, lo que indica una       tendencia al agrupamiento.
+ 
+
+---
+
+### **3. Secuoyas - Proceso de Cox**
+
+Las secuoyas también presentan **agrupamientos**, pero con una estructura más heterogénea. Este patrón puede explicarse por un **Proceso de Cox**, que modela la variabilidad ambiental afectando la ubicación de los puntos.
+
+- **Evidencia**:  
+
+  - **Índices de agrupamiento**:
+  - **Varianza relativa = 5.64**, mayor que la de los arces.
+  - **Índice de Morisita y Lloyd similares a los arces**, pero con más dispersión.
+  - **Mapa de intensidad**: Indica la presencia de zonas con distinta densidad, lo cual no es completamente explicado por un Proceso de Poisson No Homogéneo.
+  - **Distribución de distancias**: Similar a los arces, pero con mayor dispersión.
+
+---
+
+### **4. Pinos - Proceso de Inhibición Simple**
+
+Los pinos muestran una distribución **más regular y dispersa**, con distancias relativamente grandes entre puntos vecinos. Esto sugiere un **Proceso de Inhibición Simple**, donde se impone una distancia mínima entre sucesos, evitando la formación de grupos.
+
+- **Evidencia**:  
+
+  - **Índices de agrupamiento**:
+  - **Varianza relativa = 0.47**, menor a 1, lo que indica una **dispersión**.
+  - **Índice de Morisita y David-Moore negativos**, lo que **confirma un patrón más uniforme**.
+  - **Test de Chi-cuadrado**: No rechaza la hipótesis de aleatoriedad (p-valor = 0.77).
+  - **Histograma de distancias al vecino más próximo**:
+  - Presenta **distancias relativamente grandes**, indicando repulsión entre puntos.
+  - **Función G**:
+  - Se **desvía hacia un patrón más regular**, en contraste con un proceso completamente aleatorio.
+

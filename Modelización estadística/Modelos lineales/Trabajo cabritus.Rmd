@@ -1,0 +1,223 @@
+---
+title: "Cabritus"
+author: "María y Martín Gramage"
+date: "2025-02-25"
+output: pdf_document
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(pracma)
+library(signal)  # FFT and signal processing
+library(MASS)    # Ridge regression
+library(glmnet)  # Lasso regression
+library(entropy) # Spectral entropy
+library(stats)   # AIC/BIC evaluation
+library(tuneR)   # WAV file writing
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Load the Rdata file
+load("cabritus.Rdata")
+
+# Extract the noisy signal
+signal_noisy <- cabritus@left
+N <- length(signal_noisy)
+
+if (N != 19764) {
+  stop("The signal length must be 19764 for correct matrix construction.")
+}
+```
+
+
+
+# Introducción 
+
+El descubrimiento del *cabritus hawaianus* representa un avance significativo en la paleontología, al proporcionar evidencia acústica de una especie extinta a partir de la información almacenada en lava solidificada. Sin embargo, la señal sonora recuperada presenta un alto nivel de ruido, lo que dificulta su análisis y reconstrucción precisa. En este estudio, se implementa un enfoque basado en modelos estadísticos para la eliminación del ruido y la reconstrucción del alarido original del *cabritus hawaianus*. Se emplean modelos lineales con series de Fourier dentro de un marco de filtrado no supervisado, lo que permite identificar patrones en la señal sin una referencia explícita. La calidad del ajuste fue posteriormente medida mediante el cálculo del error cuadrático medio (MSE) y la correlación entre la señal reconstruida y la señal original de referencia, y arrojó una mejora significativa en la disminución del ruido. Este enfoque permite obtener una estimación más precisa de la señal original, proporcionando información valiosa sobre la bioacústica de esta especie extinta.  
+
+# Materiales y métodos 
+
+Para la reconstrucción del alarido del *cabritus hawaianus*, se utilizó el archivo `cabritus.Rdata`, que contiene el objeto `cabritus` de clase `Wave`, del cual se extrajo el vector `cabritus@left` con 19764 valores a una frecuencia de 8000 Hz:
+
+```{r}
+# Load the Rdata file
+load("cabritus.Rdata")
+
+# Extract the noisy signal
+signal_noisy <- cabritus@left
+N <- length(signal_noisy)
+
+if (N != 19764) {
+  stop("The signal length must be 19764 for correct matrix construction.")
+}
+
+
+```
+
+Se generó una base de funciones trigonométricas con 10000 términos (5000 senos y 5000 cosenos):
+
+```{r}
+#Construcción de la matriz X
+
+x <- 2 * pi * (1:N) / N
+num_basis <- 5000
+X <- matrix(nrow = N, ncol = num_basis * 2)
+
+for (i in 1:num_basis) {
+  X[, (i-1)*2+1] <- sin(i * x)
+  X[, i*2] <- cos(i * x)
+}
+
+colnames(X) <- paste0(rep(c("sin_", "cos_"), each = num_basis), rep(1:num_basis, 2))
+```
+
+Posteriormente se seleccionaron aquellas  frecuencias con una correlación absoluta superior a 0.015 con la señal ruidosa, a las que se sumaron otras funciones seleccionadas aleatoriamente de baja correlación. La matriz obtenida se utilizó para ajustar un modelo lineal de la forma:
+
+$$y_i \sim N(\mu_i, \sigma^2)$$
+Con un predictor definido como:
+$$\mu_i = \beta_0 + \sum_{j=1}^{F} (\beta_{2(j-1)+1} \sin(2\pi j x_i) + \beta_{2j} \cos(2\pi j x_i))$$
+Donde $x_i = i/I$ y $I$ definen el número total de observaciones. Los coeficientes $\beta$ fueron estimados mediante mínimos cuadrados ordinarios (OLS). Finalmente, la calidad del ajuste se evaluó calculando el MSE y la correlación entre la señal predicha y la señal original, utilizando una plataforma web proporcionada, con un límite de 25 validaciones.  
+
+
+## Proceso no supervisado  
+
+Dado que el problema tratado implicaba un filtrado sin acceso a la referencia de la señal original, se ha implementado un enfoque de procesamiento no supervisado. Este tipo de filtrado implica la identificación de patrones en la señal sin contar con un conjunto de datos etiquetados. Así, se han considerado diversas ténicas estadísticas complementarias al proceso presentado que pudieran mejorar nuestros resultados y permitieran extraer características relevantes a partir de la señal ruidosa, asegurando la eliminación del ruido sin introducir sesgos adicionales en el proceso de reconstrucción. 
+
+### Ajuste del modelo lineal 
+
+Primeramente, al considerar el ajuste del modelo lineal propuesto el primer reto fue la construcción con un alto número de variables predictoras. Existen múltiples enfoques para ajustar modelos con un alto número de variables predictoras. En este trabajo, se han utilizado los métodos de regresión Ridge y Lasso. Ridge es adecuado para situaciones con colinealidad entre variables, ya que introduce una penalización en la norma L2 de los coeficientes, lo que reduce la varianza del modelo sin eliminar términos. Por otro lado, Lasso emplea una penalización L1 que permite realizar una selección automática de variables, forzando algunos coeficientes a cero. La combinación de estos métodos asegura una reconstrucción eficiente, minimizando el sobreajuste y maximizando la capacidad del modelo para capturar la estructura de la señal subyacente.  
+
+### Selección de la matriz de diseño 
+
+Por otro lado, la selección de la matriz de diseño es crucial en el ajuste del modelo. Inicialmente se ha considerado utilizar una mezcla de variables seleccionadas a partir de la correlación que tienen con la señal ruidosa junto con una selección aleatoria de variables. Sin embargo, podemos imaginar que este paso puede verse beneficiado en la selección de las variables si introducimos otros parámetros de selección. Así, se ha decidido calcular las frecuencias dominantes de la señal ruidosa a partir de una transformada de fourier, y se calculo la entropía espectral de cada componente. De esta manera se hizo posible la selección de las variables en base a tres parámetros ponderados correspondientes a la correlación, la similaridad con las frecuencias dominantes obtenidas por la FFT y la menor entropía espectral.
+ 
+Para optimizar la selección de variables en la matriz de diseño, se integró información espectral obtenida mediante la Transformada Rápida de Fourier (FFT). La FFT permitió identificar las frecuencias dominantes en la señal, ya que las frecuencias con mayor potencia suelen corresponder a los componentes fundamentales del sonido subyacente, mientras que las de menor potencia suelen representar ruido.  
+
+```{r}
+compute_fft <- function(signal) {
+  N <- length(signal)
+  fft_values <- fft(signal)
+  power_spectrum <- Mod(fft_values[1:(N/2)])^2
+  freqs <- (0:(N/2 - 1)) / N
+  return(data.frame(freq = freqs, power = power_spectrum))
+}
+```
+
+Además, se calculó la entropía espectral de cada componente, que mide la dispersión de la energía en el espectro de frecuencias. Las señales con menor entropía espectral tienden a estar más concentradas en ciertas frecuencias dominantes, lo que indica que contienen información estructurada relevante. La selección final de variables se realizó combinando tres factores clave: la correlación con la señal, la distancia a las frecuencias dominantes identificadas mediante la FFT y la entropía espectral. Las variables seleccionadas con estos criterios fueron complementadas con una selección aleatoria para evitar sesgos en el proceso y mejorar la capacidad de generalización del modelo. 
+
+```{r}
+compute_spectral_entropy <- function(signal) {
+  fft_values <- fft(signal)
+  power_spectrum <- Mod(fft_values[1:(length(signal)/2)])^2
+  prob_dist <- power_spectrum / sum(power_spectrum)
+  return(entropy.empirical(prob_dist, unit = "log2"))
+}
+```
+
+De esta manera se hizo posible la selección de las variables en base a tres parámetros ponderados correspondientes a la correlación, la similaridad con las frecuencias dominantes obtenidas por la FFT y la menor entropía espectral.
+
+```{r}
+best_weights <- c(0.2, 0.8, 0)
+num_total_vars <- 800 
+selected_prop <- 0.8  
+```
+
+
+
+# Resultados  
+Los resultados obtenidos muestran que el enfoque propuesto ha logrado reducir significativamente el ruido en la señal del *cabritus hawaianus*. Se ha conseguido un error cuadrático medio (MSE) de 3866, lo que indica que, aunque la reconstrucción mejora la señal original, aún persisten componentes de ruido que afectan la calidad del ajuste.  
+
+
+```{r}
+
+# Cálculo de frecuencias principales con FFT
+
+fft_data <- compute_fft(signal_noisy)
+top_n <- 5
+selected_freqs <- fft_data[order(-fft_data$power), ][1:top_n, "freq"]
+
+
+# Cálculo de entropía espectral
+
+entropy_value <- compute_spectral_entropy(signal_noisy)
+
+
+# Selección de variables en X 
+basis_entropies <- apply(X, 2, compute_spectral_entropy)
+correlations <- apply(X, 2, function(col) abs(cor(col, signal_noisy)))
+fourier_freqs <- rep(1:num_basis, each = 2) / N
+freq_distances <- sapply(fourier_freqs, function(f) min(abs(f - selected_freqs)))
+
+cor_norm <- (correlations - min(correlations)) / (max(correlations) - min(correlations))
+freq_norm <- (1 - freq_distances / max(freq_distances))
+entropy_norm <- (max(basis_entropies) - basis_entropies) / (max(basis_entropies) - min(basis_entropies))
+
+best_weights <- c(0.2, 0.8, 0)
+total_score <- best_weights[1] * cor_norm + best_weights[2] * freq_norm + best_weights[3] * entropy_norm
+
+num_total_vars <- 800  # Define total number of variables to select
+selected_prop <- 0.8  # Proportion of selected variables
+num_selected_vars <- round(num_total_vars * selected_prop)
+num_random <- num_total_vars - num_selected_vars
+
+selected_vars <- order(-total_score)[1:num_selected_vars]
+set.seed(42)
+random_vars <- sample(setdiff(1:ncol(X), selected_vars), num_random)
+
+final_vars <- c(selected_vars, random_vars)
+X_selected <- X[, final_vars]
+
+
+
+# Ajuste lineal: Lasso y Ridge
+ridge_model <- cv.glmnet(X_selected, signal_noisy, alpha = 0)
+lasso_model <- cv.glmnet(X_selected, signal_noisy, alpha = 1)
+
+
+# Predicciones
+
+ridge_pred <- as.vector(predict(lm(signal_noisy ~ X_selected), newdata = data.frame(X_selected)))
+lasso_pred <- predict(lasso_model, newx = X_selected, s = "lambda.min")
+
+# Presentación de resultados
+
+plot_results <- function(original_signal, ridge_pred, lasso_pred) {
+  plot(original_signal, type = "l", col = "black", lwd = 1.5, main = "Model Comparisons",
+       ylab = "Signal Amplitude", xlab = "Time Index")
+  lines(ridge_pred, col = "blue", lwd = 1.5, lty = 2)
+  lines(lasso_pred, col = "red", lwd = 1.5, lty = 3)
+  legend("topright", legend = c("Noisy Signal", "Ridge Regression", "Lasso Regression"),
+         col = c("black", "blue", "red"), lty = c(1, 2, 3), lwd = 1.5)
+}
+
+
+plot_results(signal_noisy, ridge_pred, lasso_pred)
+
+
+# Guardado y exportación
+
+# ---Audio---
+ridge_wav <- Wave(left = ridge_pred, samp.rate = 8000, bit = 16)
+lasso_wav <- Wave(left = as.vector(lasso_pred), samp.rate = 8000, bit = 16)
+play(lasso_wav)
+play(ridge_wav)
+writeWave(ridge_wav, "ridge7.wav")
+writeWave(lasso_wav, "lasso7.wav")
+
+# ---Datos numéricos---
+
+write.csv(ridge_pred, "ridge7", row.names = FALSE)
+write.csv(lasso_pred, "lasso7.csv", row.names = FALSE)
+
+```
+
+
+
+
+
+
+# Discusión y conclusiones  
+Este estudio ha demostrado la viabilidad del filtrado no supervisado mediante modelos lineales con series de Fourier para la reconstrucción de señales ruidosas. Sin embargo, se han identificado oportunidades de mejora a través de la inclusión de filtros convolucionales, cuya eficacia ha sido demostrada en problemas similares. Estos filtros pueden incorporarse en diferentes etapas del flujo de trabajo: el filtro sinc modificado podría aplicarse en una fase inicial para eliminar ruido de alta frecuencia sin distorsionar la señal subyacente, el filtro de Savitzky-Golay podría emplearse en el preprocesamiento para suavizar la señal preservando detalles estructurales, y el filtro de Whittaker-Henderson podría integrarse en la fase final del ajuste para mejorar la suavidad de la señal reconstruida. La combinación de estos filtros con el modelo actual podría proporcionar mejoras sustanciales en la fidelidad de la reconstrucción, reduciendo aún más el ruido y optimizando la extracción de información de la señal original del *cabritus hawaianus*.  
+
+
+
+

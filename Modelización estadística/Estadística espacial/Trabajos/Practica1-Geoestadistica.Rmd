@@ -1,0 +1,563 @@
+---
+title: "Práctica 1- Geoestadística"
+author: "María Pallares Diez"
+date: "2025-02-27"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(geoR)
+library(scatterplot3d)
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE,
+	echo = FALSE
+)
+ 
+```
+
+## Introducción
+
+En esta práctica se analiza la **elevación del terreno** observada en **52 puntos**, con el objetivo de estudiar su variabilidad espacial y realizar predicciones en ubicaciones no muestreadas. Para ello, se emplearán herramientas **geoestadísticas**, específicamente el **variograma** y métodos de **kriging**.
+
+Los datos provienen del archivo `'altitud.r'`, que contiene las coordenadas espaciales **(X, Y) en kilómetros** y los valores de **altitud en metros**. Inicialmente, se evaluará si existe **una tendencia espacial**, lo que permitirá definir si es necesario removerla antes de aplicar la interpolación. Posteriormente, se analizará la **estructura del variograma** y se seleccionará el **modelo de ajuste más adecuado**.
+
+A partir del variograma ajustado, se emplearán diferentes enfoques de **kriging** para estimar la altitud en un punto específico **(3,3) km**. Se compararán los resultados obtenidos mediante **kriging ordinario, kriging sobre residuos** y **kriging universal**, analizando sus diferencias en términos de **predicción y error estándar**.
+
+Este estudio permitirá evaluar cuál de estos métodos es el más adecuado para la **predicción de la altitud del terreno**, considerando la influencia de la tendencia y la estructura de dependencia espacial en los resultados.
+
+
+## Exploración de Datos Espaciales
+
+Para analizar la estructura espacial de los datos de altitud observados en 52 puntos del terreno, realizamos una visualización en dos dimensiones (2D) y en tres dimensiones (3D). Esto nos permite evaluar la distribución espacial de los valores de altitud y detectar patrones en los datos.
+
+
+```{r}
+source("altitud.r")
+attach(altitud)
+par(mfrow = c(1,2))
+plot(x,y,type="n")
+text(x,y,alt)
+scatterplot3d(x,y,alt)
+```
+
+Los gráficos presentados permiten visualizar la **distribución de la altitud** en la región de estudio, proporcionando una primera impresión sobre su variabilidad espacial.
+
+### Gráfico 2D (izquierda)
+
+- Se muestran los **52 puntos de muestreo**, representados en un plano de coordenadas espaciales **(X, Y) en kilómetros**.  
+
+- Cada punto está etiquetado con su respectivo **valor de altitud en metros**, lo que facilita la identificación de **zonas más altas y más bajas** en el área de estudio.  
+
+- Se observa que los valores de altitud varían entre **aproximadamente 650 y 1000 metros**, indicando una diferencia significativa de elevación dentro del área muestreada.  
+
+- Permite detectar si existen **patrones espaciales**, como agrupaciones de valores similares o cambios graduales en la elevación.  
+
+### Gráfico 3D (derecha)
+
+- Representa una **visualización tridimensional** de los datos de altitud en función de las coordenadas espaciales **(X, Y) en kilómetros** y la **altitud en metros**.  
+
+- Permite identificar de manera más clara las **diferencias en elevación** y observar la **morfología del terreno**.  
+
+- Se pueden apreciar zonas más elevadas y áreas con menor altitud, lo que puede indicar la presencia de **pendientes o depresiones en el terreno**.
+
+- Este gráfico facilita la interpretación visual de la variabilidad altitudinal y ayuda a determinar si es necesario modelar una **tendencia espacial** en el análisis geoestadístico.  
+
+
+## Exploración de la estructura espacial de los datos
+
+En este paso, transformamos los datos de altitud en un **objeto geoestadístico** para su análisis mediante técnicas de geoestadística. Esto nos permitirá examinar la estructura espacial de los datos y preparar su uso en el cálculo del variograma.
+
+```{r}
+detach(altitud)
+alt.geo<-as.geodata(altitud)
+plot(alt.geo)
+```
+
+Estos gráficos nos ayudan a comprender cómo están **distribuidos los datos espacialmente** y si presentan **patrones de agrupamiento, tendencias o variabilidad significativa**.
+
+- Se observa una **distribución no uniforme** de los puntos de muestreo en el espacio.
+
+- Los diagramas de dispersión sugieren que podría haber **tendencias espaciales** en la altitud, lo que debe considerarse en el análisis geoestadístico.
+
+
+## Estimación del variograma
+
+El variograma de un proceso espacial estacionario es una función que expresa la varianza de la diferencia entre dos variables aleatorias en función de la distancia.
+
+La estimación del variograma empírico se realiza con el comando `variog()` de la librería `geoR`.
+
+```{r}
+# Estimador clásico con la función variog
+alt.cl1 <- variog(alt.geo, option="cloud", messages=F)
+# Para cada par de observaciones representamos la distancia vs diferencia de altitudes al cuadrado 
+plot(alt.cl1, pch=20)
+```
+
+- El gráfico muestra la **semivarianza** en función de la **distancia** entre pares de puntos de muestreo.
+
+- A **distancias cortas**, la semivarianza es baja, lo que sugiere que los valores de altitud cercanos tienen **mayor similitud**.
+
+- A medida que la **distancia aumenta**, la semivarianza crece, indicando **mayor variabilidad** y **menor dependencia espacial** entre los puntos.
+
+El **variograma en nube** nos proporciona una **visión exploratoria** de la variabilidad espacial en los datos. Sin embargo, para interpretar correctamente la **dependencia espacial**, es necesario **ajustar un modelo de variograma teórico** que permita una representación más clara de la **estructura espacial subyacente**.
+
+
+## Estimación del variograma con el estimador robusto
+
+El variograma permite analizar la estructura de dependencia espacial de los datos. Sin embargo, los valores extremos pueden influir en su cálculo, generando sesgos. Para mitigar este efecto, utilizamos un **estimador robusto** basado en el **módulo de las diferencias** en lugar de la semivarianza clásica.
+
+```{r}
+# El estimador robusto evita el efecto de los extremos sobre la media
+alt.cl2 <- variog(alt.geo, option="cloud", estimator.type="modulus", messages=F)
+plot(alt.cl2, pch=20)
+```
+
+
+El **variograma en nube** muestra la relación entre la distancia y la semivarianza, reflejando una fuerte correlación espacial en distancias cortas y mayor variabilidad en distancias largas. Sin embargo, su alta dispersión dificulta la identificación de un patrón claro. El **boxplot del variograma** permite visualizar la distribución de la semivarianza en diferentes rangos de distancia, pero su utilidad se centra más en evaluar la variabilidad y los valores atípicos.
+
+```{r}
+alt.v2 <- variog(alt.geo, uvec=seq(0,9,0.5), estimator.type="modulus", messages=F)
+plot(alt.v2, pch=20)
+```
+
+El **variograma binned**, que agrupa los valores en intervalos de distancia (`uvec=seq(0,9,0.5)`), resulta ser la mejor opción. Suaviza la dispersión observada en la nube de puntos y muestra una tendencia clara, donde la semivarianza crece hasta estabilizarse, indicando un **rango de correlación espacial** bien definido.
+Dado que el variograma binned equilibra detalle y claridad, se seleccionará como la base para el ajuste del modelo de variograma en los siguientes pasos del análisis.
+
+
+```{r}
+alt.vc2 <- variog(alt.geo, uvec=seq(0,9,0.5), estimator.type="modulus", bin.cloud=T, messages=F)
+plot(alt.vc2, bin.cloud=T)
+```
+
+El diagrama de cajas muestra la **variabilidad de los cuadrados de las diferencias** en función de la distancia, reflejando cómo cambia la semivarianza en distintos intervalos espaciales. Se observa que la dispersión aumenta con la distancia, indicando mayor variabilidad en pares de puntos alejados. La mediana dentro de cada bin representa la tendencia central del variograma, mientras que la amplitud de los bigotes sugiere incertidumbre creciente en distancias mayores. 
+
+
+## Identificación del Rango de Correlación Espacial
+
+Para definir el **rango de correlación espacial**, es necesario probar diferentes valores de `uvec`, que determinan la separación entre los puntos en el cálculo del variograma. Esto nos permite evaluar en qué punto la semivarianza deja de crecer significativamente y comienza a estabilizarse o disminuir.
+
+```{r}
+# Pruebas con varios intervalos
+par(mfrow=c(3,3))
+plot(variog(alt.geo, uvec=seq(0,9,0.5), messages=F))
+plot(variog(alt.geo, uvec=seq(0,9,0.75), messages=F))
+plot(variog(alt.geo, uvec=seq(0,9,1), messages=F))
+plot(variog(alt.geo, uvec=seq(0,9,1.25), messages=F))
+plot(variog(alt.geo, uvec=seq(0,9,1.5), messages=F))
+plot(variog(alt.geo, uvec=seq(0,9,1.75), messages=F))
+```
+
+Tras analizar los variogramas generados con diferentes intervalos, se observa que **la semivarianza aumenta hasta aproximadamente la distancia 6**, momento en el cual la curva deja de crecer y comienza a descender o estabilizarse. Este comportamiento indica que **a partir de esta distancia, la relación espacial entre los puntos se debilita y la información adicional no mejora la estimación**.
+
+El valor **6** se identifica como el **rango de correlación**, ya que representa la distancia a partir de la cual los valores de la variable dejan de estar espacialmente relacionados. Si eligiéramos un valor mayor, la semivarianza mostraría una variabilidad errática, indicando que hemos superado el rango útil de dependencia espacial.
+
+
+## Ajuste de Modelos de Variograma por Máxima Verosimilitud
+
+Se han ajustado distintos modelos de variograma utilizando el método de **máxima verosimilitud** para determinar cuál representa mejor la estructura de dependencia espacial en los datos. La gráfica muestra el **variograma empírico (puntos)** junto con las curvas de ajuste para cada modelo.
+
+Empleamos **6 unidades espaciales** como rango, previamente establecido y un alfeizar de **7000** seleccionado porque refleja la **varianza total de la altitud del terreno** después de alcanzar el rango de correlación. 
+
+```{r}
+# Ajuste de diferentes modelos para el variograma
+alt.exp.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), messages=F)
+alt.sph.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="sph", messages=F)
+alt.mat.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="mat", kappa=1.5, messages=F)
+alt.mat2.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="mat", kappa=1, fix.nugget=T, messages=F)
+alt.cir.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="cir", messages=F)
+alt.cub.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="cub", messages=F)
+alt.pow.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="powered.exponential", kappa=1.75, messages=F)
+alt.pow2.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="powered.exponential", kappa=1.75, fix.nugget=T, messages=F)
+
+# Representación gráfica de los modelos ajustados
+plot(alt.v2)
+lines(alt.pow2.ml, max.dist=9, lwd=3, col='red')
+lines(alt.mat2.ml, max.dist=9, lwd=3, col='blue')
+lines(alt.pow.ml, max.dist=9, lwd=3, col='green')
+lines(alt.mat.ml, max.dist=9, lwd=3, col='yellow')
+lines(alt.cub.ml, max.dist=9, lwd=3, col='orange')
+lines(alt.cir.ml, max.dist=9, lwd=3, col='grey')
+lines(alt.exp.ml, max.dist=9, lwd=3, col='magenta')
+lines(alt.sph.ml, max.dist=9, lwd=3, col='pink')
+# Ajuste de la leyenda con los nombres correctos
+legend("topleft", legend=c("Potencial 2", "Matérn2", "Potencial", "Matérn", 
+                           "Cúbico", "Circular", "Exponencial", "Esférico"),
+       col=c("red", "blue", "green", "yellow", "orange", "grey", "magenta", "pink"), 
+       lwd=3, cex=0.6, bg="white")
+```
+
+Luego de comparar diversos modelos de variograma ajustados por máxima verosimilitud, se selecciona el **modelo cúbico (naranja)** como la **mejor opción**, debido a su capacidad para representar de manera precisa la estructura espacial de los datos. Este modelo ofrece una transición suave en la semivarianza y una estabilización adecuada en la meseta, evitando sobreajustes y proporcionando un equilibrio óptimo entre flexibilidad y precisión en la estimación del variograma.
+
+
+## Comparación de diferentes métodos de estimación para el mejor modelo
+
+Se comparan diferentes métodos de estimación para el **modelo cúbico**, previamente identificado. En la gráfica se muestran los resultados de los métodos **Máxima Verosimilitud (ML)**, **Máxima Verosimilitud Restringida (RML)**, **Mínimos Cuadrados Ordinarios (OLS)** y **Mínimos Cuadrados Ponderados (WLS)**.
+
+El objetivo es evaluar cuál de estos métodos ofrece el ajuste más preciso al variograma empírico.
+
+```{r message=FALSE, warning=FALSE}
+# Diferentes métodos de ajuste para el modelo cúbico (el que se mostró en naranja)
+alt.best.ml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="cub", kappa = 2, messages=F)
+alt.best.rml <- likfit(geodata = alt.geo, ini = c(7000, 6), cov.model="cub", method='RML', kappa = 2, messages=F)
+alt.best.ols <- variofit(vario = alt.v2, ini = c(7000, 6), cov.model="cub", weights="equal", minimisation.function="optim", kappa = 2, messages=F)
+alt.best.wls <- variofit(vario = alt.v2, ini = c(7000, 6), cov.model="cub", weights="npairs", kappa = 2, messages=F)
+
+# Representación gráfica comparando los diferentes métodos de ajuste
+plot(alt.v2, , main="Comparación de Métodos de Estimación para el Modelo Cúbico", 
+     xlab="distance", ylab="semivariance")
+lines(alt.best.ml, max.dist=9, lwd=3, col="red")
+lines(alt.best.rml, max.dist=9, lwd=3, lty=2, col="blue")
+lines(alt.best.ols, max.dist=9, lwd=3, lty=3, col="green")
+lines(alt.best.wls, max.dist=9, lwd=3, lty=4, col="purple")
+
+# Añadimos una leyenda
+legend("topleft", legend=c('ML','RML','OLS','WLS'), col=c("red", "blue", "green", "purple"), lty=c(1,2,3,4), lwd=3)
+```
+
+Se observa que **OLS y ML ofrecen los ajustes más cercanos al variograma empírico**, capturando correctamente la tendencia de la semivarianza sin sobreajustes. **RML y WLS presentan mayores desviaciones**, lo que indica que pueden no ser tan efectivos en la representación de la estabilización del variograma. Se seleccionará **OLS** como método final debido a su ajuste equilibrado y su capacidad para reflejar fielmente la estructura de correlación espacial de los datos.
+
+ 
+## Superficies de tendencia
+
+El objetivo de este código es **ajustar y visualizar superficies de tendencia** a partir de los datos de altitud. Se emplea un **modelo polinomial de grado 3** para estimar la variación espacial de la altitud en la región de estudio.
+
+```{r message=FALSE, warning=FALSE}
+# Cálculo de superficies de tendencia
+library(spatial)
+attach(altitud)
+alt.ls <- surf.ls(3, x, y, alt)
+# Superficie polinomial de grado 3
+alt.trsurf <- trmat(alt.ls, 0, 6, 0, 6, 200)
+
+# Representación de superficies de tendencia
+par(pty="s", mar=c(2,2,2,2), mfrow=c(1,2))
+contour(alt.trsurf)
+points(x, y, pch=20)
+image(alt.trsurf)
+points(x, y, pch=20)
+
+par(mar=c(0,0,0,0))
+persp(alt.trsurf)
+persp(alt.trsurf, theta=90, phi=30, col="red", ltheta=-20, 
+      shade=0.5, xlab="Longitud", ylab="Latitud", zlab="Altitud")
+detach(altitud)
+```
+
+En la primera imagen, el gráfico de la izquierda representa un **mapa de contornos**, donde las líneas indican niveles de altitud en **metros**, y los puntos negros corresponden a las ubicaciones de los datos observados. La escala espacial está expresada en **kilómetros**, con valores que van de **0 a 6 km** en los ejes X e Y. Se observa que la altitud es mayor en la parte superior central y disminuye en las zonas inferiores, como reflejan las curvas de nivel.
+
+El gráfico de la derecha muestra una **superficie interpolada con colores**, proporcionando una representación más intuitiva de la variabilidad altitudinal. Aquí, los **tonos oscuros indican las zonas de mayor altitud**, mientras que los **tonos claros representan áreas más bajas**, en concordancia con los valores del mapa de contornos.
+
+A partir de estas representaciones, y sin aplicar aún métodos de interpolación como el **kriging**, podemos realizar una **estimación visual** de la altitud en el punto **(3,3)**. Observando la distribución de las curvas de nivel y la transición de colores en la imagen de la derecha, se podría aproximar que la altitud en esta ubicación es de alrededor de **820 metros**.
+
+Estas representaciones permiten visualizar la distribución espacial de la altitud en el área de estudio, facilitando la identificación de patrones antes de aplicar métodos de interpolación avanzados para una estimación más precisa.
+
+
+En la segunda imagen, los gráficos presentados muestran una **superficie ajustada a los datos de altitud**, lo que permite visualizar la tendencia espacial en la región de estudio.
+
+
+  -En la figura de la **izquierda**, se observa una visualización estándar de la superficie de tendencia ajustada, la cual presenta curvaturas suaves que reflejan la variabilidad en la altitud.
+
+  - En la figura de la **derecha**, la superficie es rotada, permitiendo una mejor percepción de los cambios altitudinales en relación con la longitud y latitud.
+
+
+## Análisis sin tendencia 
+
+Se puede observar que los valores de las muestras individuales diferirán del valor de la tendencia en cualquier lugar especificado. Estas diferencias (residuos) deben ser obtenidas eliminando la tendencia y aplicar después los métodos de interpolación ordinarios.
+
+```{r}
+# Eliminación de tendencias
+alt.sin <- altitud[,3] - predict(alt.ls, altitud[,1], altitud[,2])
+alts.geo <- alt.geo
+alts.geo$data <- alt.sin
+plot.geodata(alts.geo)
+```
+
+Se comparan dos conjuntos de datos: el primero sin tendencia y el segundo con tendencia. 
+
+En la **el primero (sin tendencia)** (imagen inmediata de arriba), los datos muestran una distribución más homogénea sin una relación espacial clara. En el **mapa de dispersión** (arriba izquierda), los puntos de colores están distribuidos sin una organización evidente. Los gráficos de dispersión **(arriba derecha y abajo izquierda)** no presentan una relación fuerte entre las coordenadas y los valores de la variable, lo que indica la ausencia de una tendencia marcada. En el **histograma (abajo derecha)**, la distribución de los datos está centrada alrededor de cero, reflejando la eliminación de la tendencia.
+
+En la **el segundo (con tendencia)** (imagen del punto: exploración de la estructura espacial de los datos), se observa una relación clara entre la variable de interés y la posición espacial. En el **mapa de dispersión** (arriba izquierda), los datos muestran patrones más estructurados, lo que sugiere la presencia de una tendencia espacial. Los gráficos de dispersión **(arriba derecha y abajo izquierda)** evidencian una relación entre los valores de la variable y su localización, indicando que la altitud varía de forma sistemática con las coordenadas. En el **histograma (abajo derecha)**, la distribución ya no está centrada en cero, sino que presenta valores más elevados y asimetría, lo que confirma la presencia de una tendencia.
+
+La comparación muestra que **hay una tendencia** y que afecta significativamente la estructura de los datos, generando dependencia espacial. 
+
+
+Tras eliminar la tendencia observada, hay que analizar la variabilidad residual y estimar de nuevo el variograma.
+
+```{r}
+# Análisis del variograma sin tendencia
+plot(variog(alts.geo, messages=F), pch=20)
+```
+
+Nos fijaremos en el crecimiento del variograma a corta distancia. Para ello hay que representar y ajustar el comportamiento inicial, en este caso hasta 4.
+
+```{r}
+alts.v1 <- variog(alts.geo, uvec=seq(0,4,0.5), max.dist=10, messages=F)
+plot(alts.v1)
+```
+
+Los valores iniciales del alféizar y el rango se aproximan a **600** y **2**, respectivamente.  
+El rango se determina observando el gráfico anterior, donde la semivarianza se estabiliza alrededor del **punto 2**, indicando que más allá de esta distancia la correlación espacial entre los puntos disminuye significativamente.
+El **alféizar** se identifica como el valor máximo al que tiende la semivarianza cuando la distancia aumenta, en este caso, alrededor de **600**, lo que representa la variabilidad espacial máxima entre los puntos separados por grandes distancias.
+
+```{r}
+# Estimación del variograma sin tendencia
+alts.exp.ml <- likfit(geodata = alts.geo, ini = c(600, 2), messages=F)
+alts.sph.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="sph", messages=F)
+alts.mat.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="mat", kappa=1.5, messages=F)
+alts.mat2.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="mat", kappa=1, fix.nugget=T, messages=F)
+alts.cir.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="cir", message=F)
+alts.gau.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="gau", messages=F)
+alts.cub.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="cub", messages=F)
+alts.pow.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="powered.exponential", kappa=1.75, messages=F)
+alts.pow2.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="powered.exponential", kappa=1.75, fix.nugget=T, messages=F)
+
+plot(alts.v1)
+lines(alts.pow2.ml, max.dist=10, lwd=2, col='red')
+lines(alts.mat2.ml, max.dist=10, lwd=2, col='blue')
+lines(alts.pow.ml, max.dist=10, lwd=2, col='green')
+lines(alts.mat.ml, max.dist=10, lwd=2, col='yellow')
+lines(alts.cub.ml, max.dist=10, lwd=2, col='orange')
+lines(alts.gau.ml, max.dist=10, lwd=2, col='cyan')
+lines(alts.cir.ml, max.dist=10, lwd=2, col='grey')
+lines(alts.exp.ml, max.dist=10, lwd=2, col='magenta')
+lines(alts.sph.ml, max.dist=10, lwd=2, col='pink')
+legend("topleft", legend=c("Potencial 2", "Matérn2", "Potencial", "Matérn", 
+                           "Cúbico", "Circular", "Exponencial", "Esférico"),
+       col=c("red", "blue", "green", "yellow", "orange", "grey", "magenta", "pink"), 
+       lwd=3, cex=0.6, bg="white")
+```
+
+Se elige el **modelo cúbico (naranja)** por su mejor ajuste al variograma empírico. Su curva sigue de cerca la distribución de los puntos, alcanzando la meseta de forma progresiva sin sobreestimaciones. 
+
+```{r message=FALSE, warning=FALSE}
+# Comparación de métodos de estimación para el modelo Cúbico
+alts.cub.ml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="cub", messages=F)
+alts.cub.rml <- likfit(geodata = alts.geo, ini = c(600, 2), cov.model="cub", method='RML', messages=F)
+alts.cub.ols <- variofit(vario = alts.v1, ini = c(600, 2), cov.model="cub", weights="equal", minimisation.function="optim", messages=F)
+alts.cub.wls <- variofit(vario = alts.v1, ini = c(600, 2), cov.model="cub", weights="npairs", messages=F)
+
+# Representación gráfica comparando los diferentes métodos de ajuste
+plot(alts.v1, main="Comparación de Métodos de Estimación para el Modelo Cúbico", 
+     xlab="distance", ylab="semivariance")
+
+lines(alts.cub.ml, max.dist=10, lwd=2, col='red')       # ML
+lines(alts.cub.rml, max.dist=10, lwd=2, col='blue', lty=2) # RML
+lines(alts.cub.ols, max.dist=10, lwd=2, col='green', lty=3) # OLS
+lines(alts.cub.wls, max.dist=10, lwd=2, col='purple', lty=4) # WLS
+
+# Leyenda para identificar cada método de estimación
+legend("topleft", legend=c("ML", "RML", "OLS", "WLS"), 
+       col=c("red", "blue", "green", "purple"), lwd=2, lty=c(1,2,3,4), cex=0.8, bg="white")
+
+```
+
+Se elige **ML (Máxima Verosimilitud, línea roja)** por su mejor ajuste al variograma empírico. .
+
+
+## Predicción espacial con kriging
+
+```{r message=FALSE, warning=FALSE}
+# Definir la malla de predicción
+loci <- expand.grid(seq(0,6,l=31), seq(0,6,l=31))
+# Visualización de la malla y puntos de observación
+plot(alt.geo$coords)
+points(loci, cex=0.3)
+# Definir el punto de interés (3,3)
+punto_pred <- cbind(3,3)
+points(punto_pred, pch="+", col="red", cex=2)
+```
+
+La imagen representa la **malla de predicción** utilizada en el análisis geoestadístico, superpuesta a los puntos de observación de la elevación del terreno. 
+
+Los **círculos vacíos** corresponden a las ubicaciones de los datos observados, mientras que los **puntos negros más pequeños** indican la distribución de los nodos de la malla sobre la cual se realizarán las predicciones mediante kriging. 
+
+En el centro de la imagen, el **símbolo rojo (+)** señala el **punto de interés en (3,3)** donde se realizará la estimación de la altitud utilizando los distintos modelos de kriging. 
+
+Esta visualización permite entender la distribución de los datos y verificar la densidad de observaciones en torno al punto a predecir, lo cual influye directamente en la precisión del resultado, en nuestro caso vemos que alrededor del punto a predecir no hay muchas observaciones lo que puede influir en nuestra predicción.
+
+
+En este análisis, se comparan tres enfoques de **kriging** para la predicción de la **altitud del terreno en el punto (3,3)**:
+
+1. **Kriging Ordinario**: Se aplica directamente sobre los datos con tendencia, sin eliminarla previamente. Además, el variograma utilizado para la estimación también se ajusta con los datos que conservan la tendencia.
+
+2. **Kriging sobre Residuos**: Se elimina previamente la tendencia del modelo y se ajusta el variograma únicamente sobre la componente residual.
+
+3. **Kriging Universal**: Se incorpora la tendencia directamente en el proceso de interpolación. En este caso, los datos utilizados mantienen la tendencia, pero el variograma empleado se ajusta a los datos sin tendencia. 
+
+ 
+### Predicción con kriging ordinario
+
+La predicción mediante **kriging ordinario** se basa en el **variograma ajustado previamente**, manteniendo la tendencia en el modelo. Se ha seleccionado el modelo de la **familia Potencial 2**, con los parámetros ajustados en el objeto `alt.best.ols`. La predicción de la altitud se realiza sobre una **red regular de puntos** que abarca toda la región de estudio.  
+
+Una de las ventajas del enfoque geoestadístico es que cada punto de la cuadrícula estimada cuenta con un **error asociado**, lo que permite evaluar la **incertidumbre** de la predicción. Este error se expresa a través del **error estándar de kriging**, que representa la **desviación típica de la estimación**. Como resultado, el kriging genera **dos mapas**, uno con la **predicción de la altitud** y otro con la **distribución del error estándar**, lo que permite identificar las zonas con mayor o menor confiabilidad en la estimación.
+
+
+```{r message=FALSE, warning=FALSE}
+# Kriging ordinario
+kc1 <- krige.conv(alt.geo, locations=loci, krige=krige.control(
+  cov.pars=alt.best.ols$cov.pars, nugget=alt.best.ols$nugget))
+
+# Visualización de la estimación y error estándar
+par(mfrow=c(1,2))
+image(kc1, loc=loci, main='Estimación Kriging Ordinario')
+image(kc1, loc=loci, val=sqrt(kc1$krige.var), main='Error Estándar')
+
+par(mfrow=c(1,2))
+persp(kc1, loc=loci, main='Estimación Kriging Ordinario', phi=30, theta=45)
+persp(kc1, loc=loci, val=sqrt(kc1$krige.var), main='Error Estándar Kriging Ordinario')
+
+# Predicción en el punto (3,3)
+kc_punto <- krige.conv(alt.geo, locations=punto_pred, krige=krige.control(
+  cov.pars=alt.best.ols$cov.pars, nugget=alt.best.ols$nugget))
+```
+
+En la primera imagen, observamos la **estimación de la altitud** en la región de estudio, donde los tonos más claros indican valores más altos y los oscuros valores más bajos. Se aprecia una distribución coherente de la variabilidad espacial del terreno.
+
+En la segunda imagen, se muestra el **error estándar de kriging**, el cual nos indica la incertidumbre de la predicción en cada punto. Se observa que el error es mayor en zonas más alejadas de las observaciones originales, lo que es esperable debido a la menor información disponible.
+
+En la tercera imagen, se representan las superficies tridimensionales de la **predicción** y del **error estándar**, lo que nos permite visualizar la variabilidad espacial con más detalle. Se observa que la superficie de predicción es suave y continua, mientras que el error muestra fluctuaciones en zonas con menor densidad de puntos muestreados.
+
+
+### Predicción con kriging en los residuos
+
+Otra alternativa consiste en determinar una **superficie de tendencia**, eliminar dicha tendencia observada y analizar los **residuos** mediante **kriging ordinario**. La superficie `alts.ls` corresponde al ajuste de un **modelo polinomial de grado 3**, que captura las variaciones globales de la altitud. Los residuos, obtenidos al restar la tendencia ajustada, fueron almacenados en `alts.geo`, y el variograma estimado pertenece al modelo **Cúbico**, almacenado en `alts.cub.ml`.
+
+Una vez realizada la **predicción kriging sobre los residuos**, el proceso completo se reconstruye sumando la predicción con la tendencia original, utilizando la función `evaltend`. Esto permite corregir la estimación, integrando tanto la estructura espacial de los residuos como la variabilidad global del terreno.
+
+```{r}
+# Evaluación de la tendencia
+evaltend <- function(superf, puntos){
+  predict(superf, puntos[,1], puntos[,2])
+}
+
+# Kriging ordinario sobre los residuos utilizando el modelo cúbico
+kc2 <- krige.conv(alts.geo, locations=loci, krige=krige.control(
+  cov.pars=alts.cub.ml$cov.pars, nugget=alts.cub.ml$nugget))
+
+# Visualización de la estimación y error estándar
+par(mfrow=c(1,2))
+image(kc2, loc=loci, val=kc2$predict + evaltend(alt.ls, loci),
+      main='Estimación Kriging sobre Residuos')
+image(kc2, loc=loci, val=sqrt(kc2$krige.var), main='Error Estándar')
+
+# Visualización 3D
+par(mfrow=c(1,2))
+persp(kc2, loc=loci, val=kc2$predict + evaltend(alt.ls, loci), 
+      main='Estimación Kriging sobre Residuos', phi=30, theta=45)
+persp(kc2, loc=loci, val=sqrt(kc2$krige.var), main='Error Estándar Kriging sobre Residuos')
+
+# Predicción en el punto (3,3)
+kc2_punto <- krige.conv(alts.geo, locations=punto_pred, krige=krige.control(
+  cov.pars=alts.cub.ml$cov.pars, nugget=alts.cub.ml$nugget))
+
+# Sumar la tendencia a la predicción
+prediccion_final <- kc2_punto$predict + evaltend(alt.ls, punto_pred)
+
+```
+
+La primera imagen muestra la estimación de la altitud del terreno tras aplicar **kriging sobre los residuos**. Se observa una distribución similar a la del kriging ordinario, pero con una ligera variación en las zonas de mayor y menor elevación. Esto sugiere que la eliminación de la tendencia ha influido en la estructura espacial de los datos.
+
+En la segunda imagen, se representa el **error estándar de la predicción**. Se identifican zonas con mayor incertidumbre, indicadas por colores más oscuros. Esto ocurre en áreas donde la cantidad de datos observados es menor o donde la variabilidad es más alta, lo que confirma que este método puede introducir errores adicionales si la tendencia no ha sido correctamente eliminada.
+
+La tercera imagen ofrece una visualización tridimensional de la estimación y del error estándar. Se aprecia que la superficie de predicción mantiene una estructura coherente con la variabilidad espacial observada. El error estándar presenta picos elevados en ciertas regiones, reflejando una menor precisión en la predicción en esas áreas.
+
+
+## Predicción con kriging universal (con tendencia)
+
+El **kriging universal** integra directamente la superficie de tendencia u otras funciones relacionadas con la localización, aplicándolas tanto en los puntos de observación como en los de predicción.  
+
+En este caso, se emplea el modelo **`alts.cub.ml`** sin tendencia, seleccionado previamente por su mejor ajuste, asegurando una estimación más precisa tras la eliminación de la tendencia.
+
+
+```{r}
+## Kriging universal
+kc3 <- krige.conv(alt.geo, locations=loci, krige=krige.control(
+  trend.d=~evaltend(alt.ls, alt.geo$coords),
+  trend.l=~evaltend(alt.ls, loci),
+  cov.pars=alts.cub.ml$cov.pars, 
+  nugget=alts.cub.ml$nugget))
+
+# Visualización
+par(mfrow=c(1,2))
+image(kc3, loc=loci, main='Estimación Kriging Universal')
+image(kc3, loc=loci, val=sqrt(kc3$krige.var), main='Error Estándar')
+
+par(mfrow=c(1,2))
+persp(kc3, loc=loci, main='Estimación Kriging Universal', phi=30, theta=45)
+persp(kc3, loc=loci, val=sqrt(kc3$krige.var), main='Error Estándar Kriging Universal')
+
+# Predicción en el punto (3,3)
+kc3_punto <- krige.conv(alt.geo, locations=punto_pred, krige=krige.control(
+  trend.d=~evaltend(alt.ls, alt.geo$coords),
+  trend.l=~evaltend(alt.ls, punto_pred),
+  cov.pars=alts.cub.ml$cov.pars, 
+  nugget=alts.cub.ml$nugget))
+```
+
+La primera imagen muestra el resultado de la **predicción de altitud utilizando kriging universal**, donde se ha incorporado explícitamente la tendencia en el modelo. Se observa una estructura de altitudes con zonas más elevadas en tonos claros y áreas de menor elevación en tonos oscuros, reflejando el patrón espacial de los datos.
+
+La segunda imagen representa el **mapa del error estándar**, que indica la incertidumbre asociada a la predicción en cada punto del dominio. Se aprecia mayor variabilidad en algunas regiones, lo que sugiere zonas con menos información observada o mayor complejidad en la estructura espacial.
+
+Las dos últimas imágenes muestran la predicción y su error estándar en **representación tridimensional**, permitiendo visualizar la variabilidad del modelo de kriging universal desde una perspectiva diferente. La superficie de estimación sigue la estructura esperada de los datos, mientras que el gráfico de error estándar muestra fluctuaciones más notorias en ciertas zonas, destacando regiones con menor precisión en la predicción.
+
+
+## Comparación de Predicciones en el punto (3,3)
+
+La siguiente tabla presenta las predicciones obtenidas mediante **Kriging Ordinario, Kriging sobre Residuos y Kriging Universal** en el punto **(3,3)**, junto con sus errores estándar e intervalos de confianza al **95%**.
+
+```{r}
+# Crear un dataframe con las predicciones y errores estándar
+predicciones <- data.frame(
+  Método = c("Kriging Ordinario", "Kriging sobre Residuos", "Kriging Universal"),
+  Predicción = c(
+    kc_punto$predict, 
+    kc2_punto$predict + evaltend(alt.ls, punto_pred),
+    kc3_punto$predict
+  ),
+  Error = c(
+    sqrt(kc_punto$krige.var), 
+    sqrt(kc2_punto$krige.var), 
+    sqrt(kc3_punto$krige.var)
+  ),
+  IC_Inf = c(
+    kc_punto$predict - 1.96 * sqrt(kc_punto$krige.var),
+    (kc2_punto$predict + evaltend(alt.ls, punto_pred)) - 1.96 * sqrt(kc2_punto$krige.var),
+    kc3_punto$predict - 1.96 * sqrt(kc3_punto$krige.var)
+  ),
+  IC_Sup = c(
+    kc_punto$predict + 1.96 * sqrt(kc_punto$krige.var),
+    (kc2_punto$predict + evaltend(alt.ls, punto_pred)) + 1.96 * sqrt(kc2_punto$krige.var),
+    kc3_punto$predict + 1.96 * sqrt(kc3_punto$krige.var)
+  )
+)
+# Mostrar la tabla en formato más visual 
+knitr::kable(predicciones, caption="Comparación de Predicciones y Errores en (3,3)")
+```
+
+
+### Análisis de Resultados y Predicción en (3,3)
+
+Se han aplicado tres métodos de kriging para la **predicción de la altitud en el punto (3,3) km**, obteniendo resultados muy similares en cuanto a la estimación final:
+
+- **Kriging ordinario:** 819.24 m  
+- **Kriging sobre residuos:** 818.04 m  
+- **Kriging universal:** 818.09 m  
+
+A pesar de que las predicciones son prácticamente idénticas, se observan diferencias en los **errores estándar e intervalos de confianza**, lo que permite evaluar la incertidumbre asociada a cada método.
+
+El **kriging ordinario**, que utiliza los datos con tendencia, presenta el mayor **error estándar (26.78)** y el intervalo de confianza más amplio **(766.31 - 872.11)**. Esto indica que, aunque la predicción es precisa, la incertidumbre en la estimación es mayor en comparación con los otros métodos.
+
+En contraste, **kriging sobre residuos y kriging universal** ofrecen estimaciones con menor error estándar (**14.81**) y un intervalo de confianza más estrecho **(789.02 - 847.06 y 789.06 - 847.11, respectivamente)**. Esto sugiere que estos métodos proporcionan una predicción más estable y con menor incertidumbre.
+
+Si observamos el mapa de contornos en superficie de tendencia, podemos ver que la altitud esperada en el punto (3,3) se encuentra alrededor de **820 metros**, lo cual concuerda con las predicciones obtenidas, especialmente con **kriging ordinario**, que ofrece un valor de **819.24 m**, y con **kriging sobre residuos y kriging universal**, que dan valores cercanos a **818 m**. Esto confirma que los métodos aplicados ofrecen estimaciones coherentes con la tendencia general observada en la región.
+
+
+## Conclusión
+
+El hecho de que **kriging sobre residuos y kriging universal arrojen valores casi idénticos** indica que la eliminación explícita de la tendencia no ha tenido un impacto significativo en la predicción final. Esto sugiere que la tendencia en los datos no era un factor determinante en la variabilidad espacial modelada y que, en este caso, los métodos sin tendencia generan estimaciones igualmente confiables, pero con menor error estándar.
+
+Por lo tanto, si el objetivo es minimizar la incertidumbre en la predicción, **kriging sobre residuos o kriging universal serían las opciones más adecuadas** ofreciendo una estimación final en el punto (3,3)km de **818** metros.
