@@ -1,0 +1,300 @@
+---
+title: "TAREA FINAL-Informe del Sueño en Mamíferos"
+author: "María Pallares Diez"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(dplyr)
+```
+
+# Introducción
+
+El sueño es un proceso biológico esencial en los mamíferos que influye en su comportamiento, metabolismo y supervivencia. Estudiar los patrones de sueño en diferentes especies proporciona una ventana para entender cómo las características biológicas y ecológicas, como el peso corporal, la dieta y el estado de conservación, afectan las necesidades y variabilidad del sueño.
+
+Esta temática resulta especialmente importante porque el sueño está vinculado con el equilibrio energético, la consolidación de memoria y el fortalecimiento del sistema inmunológico. Además, los patrones de sueño reflejan adaptaciones evolutivas que responden al entorno y a las necesidades específicas de cada especie.
+
+Las preguntas que guiarán este análisis son:
+
+- ¿Cómo se relacionan las horas de sueño con el peso corporal y cerebral de los mamíferos?
+
+- ¿Qué diferencias en los patrones de sueño existen entre distintos tipos de dieta?
+
+- ¿El estado de conservación de una especie influye en sus patrones de sueño?
+
+- ¿Cuáles son las especies que más duermen y qué las caracteriza?
+
+El análisis busca responder estas preguntas utilizando la base de datos **msleep**, un recurso que incluye información detallada sobre patrones de sueño, peso corporal, peso cerebral y otras características relevantes de 83 especies de mamíferos.
+
+# Proceso de Obtención y Análisis de Datos
+
+La base de datos **msleep** está incluida en el paquete `ggplot2`, ampliamente utilizado en R para visualización y análisis de datos. Contiene 83 observaciones y variables relacionadas con los patrones de sueño y características biológicas de diversas especies de mamíferos. Las variables principales utilizadas en este análisis son:
+
+- **`sleep_total`**: Horas totales de sueño por día.
+- **`sleep_rem`**: Horas de sueño REM por día.
+- **`sleep_cycle`**: Duración promedio del ciclo de sueño (horas).
+- **`awake`**: Horas totales en estado de vigilia.
+- **`bodywt`**: Peso corporal en kilogramos.
+- **`brainwt`**: Peso del cerebro en kilogramos.
+- **`vore`**: Tipo de dieta (carnívoro, herbívoro, insectívoro u omnívoro).
+- **`conservation`**: Estado de conservación de la especie (e.g., "least concern (lc)", "endangered (en)").
+
+El análisis se realizó en los siguientes pasos:
+
+1. **Carga y preparación de los datos**:
+   Los datos fueron cargados directamente desde el paquete `ggplot2`. Se realizó una limpieza inicial de los datos, convirtiendo variables categóricas como `vore` y `conservation` en factores para facilitar su análisis. También se identificaron valores faltantes y se excluyeron de los cálculos cuando fue necesario.
+
+2. **Descripción gráfica y numérica**:
+   Utilizamos la función genérica creada en clase para generar descripciones detalladas de las variables, incluyendo resúmenes numéricos (media, varianza, cuartiles) y gráficos como histogramas y diagramas de caja para las variables categóricas.
+
+
+```{r, include=FALSE}
+# Función genérica aplicada a msleep
+data(msleep)
+msleep <- msleep %>% mutate(
+  vore = as.factor(vore),
+  conservation = as.factor(conservation)
+)
+
+describe_variables <- function(data, use_plot = "ggplot") {
+  for (var in colnames(data)) {
+    cat("\nVariable:", var, "\n")
+    if (is.numeric(data[[var]])) {
+      # Resumen numérico para variables continuas
+      print(summary(data[[var]]))
+      
+      if (use_plot == "ggplot") {
+        # Gráfico utilizando ggplot2
+        print(
+          ggplot(data, aes_string(x = var)) +
+            geom_histogram(binwidth = 1, fill = "blue", color = "white") +
+            labs(title = paste("Distribución de", var), x = var, y = "Frecuencia") +
+            theme_minimal()
+        )
+      } else if (use_plot == "base") {
+        # Gráfico utilizando base R
+        hist(data[[var]], main = paste("Distribución de", var), xlab = var, col = "lightblue", border = "white")
+      }
+    } else if (is.factor(data[[var]])) {
+      # Resumen de frecuencia para variables categóricas
+      print(table(data[[var]]))
+      
+      if (use_plot == "ggplot") {
+        # Gráfico utilizando ggplot2
+        print(
+          ggplot(data, aes_string(x = var)) +
+            geom_bar(fill = "green") +
+            labs(title = paste("Frecuencia de", var), x = var, y = "Cuenta") +
+            theme_minimal()
+        )
+      } else if (use_plot == "base") {
+        # Gráfico utilizando base R
+        barplot(table(data[[var]]), main = paste("Frecuencia de", var), xlab = var, col = "lightgreen", border = "white")
+      }
+    }
+  }
+}
+describe_variables(msleep, use_plot = "ggplot")
+```
+
+
+
+### Descripción gráfica y numérica de las variables:
+
+**Variables numéricas**:
+- **`sleep_total`** (Horas totales de sueño):
+  - Rango: De 1.9 a 19.9 horas.
+  - Media: 10.4 horas.
+  - Varianza: Alta dispersión en las horas de sueño entre las especies.
+  - Histograma: Muestra una distribución relativamente simétrica con un pico alrededor de las 8-10 horas.
+
+- **`sleep_rem`** (Horas de sueño REM):
+  - Rango: De 0.1 a 6.6 horas.
+  - Media: 1.9 horas.
+  - Observaciones: Los valores de sueño REM representan una fracción del sueño total.
+
+- **`sleep_cycle`** (Duración del ciclo de sueño):
+  - Rango: De 0.1167 a 3.3 horas.
+  - Media: 0.667 horas.
+  - Observaciones: Ciclos más cortos pueden estar relacionados con adaptaciones específicas de ciertas especies.
+
+- **`awake`** (Horas de vigilia):
+  - Rango: De 4.1 a 22.1 horas.
+  - Media: 13.6 horas.
+  - Observaciones: Esta variable complementa directamente `sleep_total`, dado que juntas suman 24 horas.
+
+- **`bodywt`** (Peso corporal):
+  - Rango: De 0.02 kg a 6654 kg.
+  - Media: 166.5 kg (influida por especies muy grandes como los elefantes).
+  - Varianza: Alta dispersión debido a la enorme variabilidad en los tamaños de las especies.
+  - Histograma: La mayoría de las especies tienen un peso corporal pequeño, con una cola larga hacia los pesos altos.
+
+- **`brainwt`** (Peso del cerebro):
+  - Rango: De 0.005 kg a 6.17 kg.
+  - Media: 0.281 kg.
+  - Observaciones: Los valores son relativamente pequeños, pero muestran correlación con el peso corporal.
+
+**Variables categóricas**:
+- **`vore`** (Tipo de dieta):
+  - Distribución:
+    - Herbívoros: Mayor frecuencia.
+    - Carnívoros e insectívoros: Menor frecuencia.
+  - Gráfico de barras: Evidencia la predominancia de herbívoros en la base de datos.
+
+- **`conservation`** (Estado de conservación):
+  - Distribución:
+    - "Least concern" es el estado más frecuente.
+    - Las especies en peligro son menos representadas.
+  - Gráfico de barras: Resalta la dominancia de especies con "preocupación menor".
+
+Este análisis inicial resalta la diversidad de los datos y las posibles relaciones entre las variables categóricas y numéricas. Por ejemplo, podríamos explorar cómo la dieta o el estado de conservación influyen en las horas de sueño.
+
+```{r, include=FALSE}
+library(ggcorrplot)
+
+# Seleccionar variables numéricas
+numeric_vars <- msleep %>% select(where(is.numeric))
+
+# Calcular matriz de correlación
+cor_matrix <- cor(numeric_vars, use = "complete.obs")
+
+# Visualizar matriz de correlación
+ggcorrplot(cor_matrix, lab = TRUE, lab_size = 3, colors = c("#6D9EC1", "white", "#E46726"),
+           title = "Matriz de Correlación entre Variables Numéricas", 
+           ggtheme = theme_minimal())
+```
+
+# Resultados
+
+## Relación entre Horas de Sueño, Peso Corporal y Peso Cerebral
+
+```{r, message=FALSE, warning=FALSE}
+library(gridExtra)
+library(dplyr)
+
+# Convertir pesos a gramos y eliminar filas con valores faltantes
+msleep <- msleep %>%
+  mutate(
+    bodywt_grams = bodywt * 1000,    # Convertir peso corporal a gramos
+    brainwt_grams = brainwt * 1000  # Convertir peso cerebral a gramos
+  ) %>%
+  filter(!is.na(bodywt_grams) & !is.na(brainwt_grams)) # Eliminar filas con NA en pesos
+
+# Gráfico 1: Relación entre Peso Corporal (gramos, escala logarítmica) y Horas de Sueño
+plot_bodywt <- ggplot(msleep, aes(x = bodywt_grams, y = sleep_total)) +
+  geom_point(color = "blue", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  scale_x_log10() +
+  labs(title = "Relación Peso Corporal y Horas de Sueño",
+       x = "Peso Corporal (gramos, escala logarítmica)",
+       y = "Horas Totales de Sueño") +
+  theme_minimal()+
+  theme(plot.title = element_text(size = 10)) 
+
+# Gráfico 2: Relación entre Peso Cerebral (gramos, escala logarítmica) y Horas de Sueño
+plot_brainwt <- ggplot(msleep, aes(x = brainwt_grams, y = sleep_total)) +
+  geom_point(color = "purple", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "green", se = FALSE) +
+  scale_x_log10() +
+  labs(title = "Relación Peso Cerebral y Horas de Sueño",
+       x = "Peso Cerebral (gramos, escala logarítmica)",
+       y = "Horas Totales de Sueño") +
+  theme_minimal()+
+  theme(plot.title = element_text(size = 10)) 
+
+# Mostrar ambos gráficos juntos
+grid.arrange(plot_bodywt, plot_brainwt, ncol = 2)
+```
+
+**Observaciones:**
+
+- Las gráficas muestran una relación inversa entre las horas totales de sueño y el peso corporal y cerebral (ambos en gramos, escala logarítmica).
+
+- Los mamíferos con menor peso corporal tienden a dormir más horas, mientras que los más grandes duermen menos.
+
+- De manera similar, los mamíferos con cerebros más pequeños parecen dormir más horas que aquellos con cerebros más grandes.
+
+- Existe una alta dispersión en ambas gráficas, especialmente para los animales con pesos intermedios, lo que indica que otros factores influyen en los patrones de sueño.
+
+**Interpretación:**
+
+- La relación inversa entre el peso corporal y las horas de sueño podría explicarse por las demandas metabólicas: los mamíferos más pequeños tienen tasas metabólicas más altas y necesitan más horas de sueño para procesos como recuperación energética y consolidación de memoria.
+
+- En el caso del peso cerebral, los cerebros más grandes podrían asociarse con patrones de sueño más eficientes debido a su mayor capacidad cognitiva y metabólica.
+
+- Aunque las tendencias generales son claras, la dispersión de los datos sugiere que otros factores, como el entorno, el comportamiento social y las adaptaciones evolutivas, también juegan un papel crucial en la determinación de los patrones de sueño.
+
+## Comparación de Sueño por Estado de Conservación
+
+```{r, fig.width=5, fig.height=4}
+ggplot(msleep, aes(x = conservation, y = sleep_total, fill = conservation)) +
+  geom_boxplot() +
+  labs(title = "Horas de Sueño por Estado de Conservación",
+       x = "Estado de Conservación",
+       y = "Horas Totales de Sueño") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+**Observaciones:**
+
+- Las especies en "preocupación menor" (`least concern`) tienen una mayor variabilidad en las horas de sueño.
+
+- Las especies en peligro (`endangered`) muestran patrones de sueño más consistentes, aunque en menor cantidad de horas.
+
+
+**Interpretación:**
+
+Esto podría reflejar las presiones ambientales o de hábitat: las especies en peligro pueden necesitar estar más alerta para sobrevivir.
+
+## Distribución de Sueño por Tipo de Dieta
+
+```{r, fig.width=5, fig.height=4}
+ggplot(msleep, aes(x = vore, y = sleep_total, fill = vore)) +
+  geom_boxplot() +
+  labs(title = "Horas de Sueño por Tipo de Dieta",
+       x = "Tipo de Dieta",
+       y = "Horas Totales de Sueño") +
+  theme_minimal()
+```
+
+**Observaciones:**
+
+- Los insectívoros tienen las horas de sueño más altas, mientras que los herbívoros presentan las más bajas.
+
+- La variabilidad dentro de cada grupo es considerable, lo que sugiere que no todos los individuos dentro de un grupo siguen el mismo patrón.
+
+**Interpretación:**
+
+Los insectívoros, que generalmente tienen presas pequeñas y abundantes, pueden permitirse dormir más, mientras que los herbívoros necesitan más tiempo para alimentarse y estar alerta ante depredadores.
+
+```{r, include=FALSE}
+ggplot(msleep, aes(x = sleep_rem, y = sleep_total)) +
+  geom_point(color = "green", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +
+  labs(title = "Relación entre Sueño Total y Sueño REM",
+       x = "Horas de Sueño REM",
+       y = "Horas Totales de Sueño") +
+  theme_minimal()
+```
+
+# Conclusiones
+
+Este análisis revela patrones interesantes y responde a las preguntas planteadas inicialmente:
+
+1. **Relación entre sueño y peso corporal:** Los mamíferos más pequeños duermen más, probablemente debido a sus altas tasas metabólicas y mayores demandas energéticas, las cuales requieren más tiempo de recuperación fisiológica. En contraste, los mamíferos más grandes, con metabolismos más eficientes, pueden permitirse menos horas de sueño.
+
+2. **Influencia de la dieta:** Los insectívoros son los que más duermen, seguidos por los carnívoros, mientras que los herbívoros tienen menos horas de sueño. Esto puede estar relacionado con el tiempo necesario para obtener alimento y las estrategias de vigilancia. Los herbívoros necesitan largas horas para consumir grandes cantidades de alimento con baja densidad energética, lo que limita sus periodos de descanso.
+
+3. **Estado de conservación:** Las especies en peligro muestran patrones de sueño más consistentes y reducidos, posiblemente debido a mayores demandas ambientales, presiones predatorias o estrés inducido por cambios en su hábitat. Estos factores pueden alterar significativamente los patrones naturales de sueño.
+
+4. **Relación entre sueño REM y total:** Las horas de sueño REM están positivamente correlacionadas con el sueño total, pero representan una fracción variable según la especie. Este tipo de sueño es crucial para funciones cognitivas como la consolidación de memoria y la regeneración neuronal, lo que sugiere una importancia evolutiva diferenciada entre especies.
+
+Futuras investigaciones podrían explorar cómo factores ambientales, como la temperatura, la disponibilidad de alimento y el comportamiento social, afectan estos patrones. Además, un análisis detallado de las adaptaciones evolutivas y la comparación entre taxones podría proporcionar una visión más completa de las estrategias que han moldeado los patrones de sueño en los mamíferos. Ampliar el enfoque para incluir otras características biológicas, como la relación cerebro-cuerpo o la longevidad, podría ofrecer perspectivas valiosas sobre la función del sueño y su relación con el éxito evolutivo.
+

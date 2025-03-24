@@ -1,0 +1,88 @@
+
+1) SELECT nombre, apellidos FROM v_empleados;
+
+2) SELECT DISTINCT ciudad FROM v_clientes WHERE ciudad IS NOT NULL;
+
+3) SELECT titulo, descripcion, precio FROM v_cursos WHERE precio > 50;
+
+4) SELECT descripcion, (precio_venta - precio_compra) AS beneficio 
+   FROM v_productos 
+   WHERE precio_venta BETWEEN 20 AND 40;
+
+5) SELECT nombremascota, fechanac 
+   FROM v_mascotas 
+   WHERE fechanac < '01/01/2008' OR fechanac > '31/12/2009';
+
+6) SELECT * FROM v_empleados 
+   WHERE trabajo IN ('administrativo', 'comercial');
+
+7) SELECT e.nombre, e.apellidos, e.direccion 
+   FROM v_empleados e JOIN v_clientes c 
+   ON e.idempleado = c.idcliente 
+   WHERE c.ciudad = 'Valencia';
+
+8) SELECT nombre, apellido 
+   FROM v_clientes 
+   WHERE ciudad IS NULL;
+
+9) SELECT nombre, email, telefono 
+   FROM v_proveedores 
+   WHERE email IS NULL OR telefono IS NULL;
+
+10) SELECT * FROM v_pedidos 
+    WHERE fechaentrega BETWEEN '1/01/2016' AND '31/12/2016'
+    OR (fechaentrega IS NULL AND fechapedido BETWEEN '1/01/2016' AND '31/12/2016');
+
+11) SELECT descripcion, (precio_compra * stock) AS valor_stock 
+    FROM v_productos 
+    ORDER BY 2 DESC;
+
+12) SELECT nombre, apellidos 
+    FROM v_empleados 
+    UNION 
+    SELECT nombre, apellido  
+    FROM v_clientes 
+    ORDER BY 2,1;
+
+13) SELECT idcliente 
+    FROM v_clientes 
+    WHERE idcliente NOT IN (SELECT idcliente FROM v_pedidos) 
+    AND idcliente NOT IN (SELECT idcliente FROM v_cursos_clientes);
+
+14) SELECT nombremascota, nombre, apellido 
+    FROM v_mascotas 
+    JOIN v_clientes ON v_mascotas.idcliente = v_clientes.idcliente 
+    ORDER BY nombremascota;
+
+15) SELECT titulo, descripcion, nombre, apellidos 
+    FROM v_cursos 
+    LEFT JOIN v_empleados ON v_cursos.instructor = v_empleados.idempleado;
+
+16) SELECT nombremascota, fechanac 
+    FROM v_mascotas 
+    WHERE tipoanimal NOT IN (SELECT tipoanimal FROM v_animales WHERE nombre IN ('Perro', 'Gato')) 
+    ORDER BY tipoanimal, fechanac;
+
+17) SELECT nombre 
+    FROM v_proveedores 
+    WHERE idproveedor NOT IN (SELECT idproveedor FROM v_productos);
+
+18) SELECT nombre, apellidos 
+    FROM v_empleados 
+    WHERE nombre IN (SELECT nombre FROM v_empleados GROUP BY nombre HAVING COUNT(*) > 1);
+
+19) SELECT v_clientes.nombre, apellido, descripcion, cantidad 
+    FROM v_clientes 
+    JOIN v_pedidos ON v_clientes.idcliente = v_pedidos.idcliente 
+    JOIN v_pedidos_productos ON v_pedidos.idpedido = v_pedidos_productos.idpedido 
+    JOIN v_productos ON v_pedidos_productos.idproducto = v_productos.idproducto 
+    ORDER BY apellido, nombre;
+
+20) SELECT titulo, v_empleados.nombre AS instructor_nombre, v_empleados.apellidos AS instructor_apellido,
+    v_clientes.nombre AS cliente_nombre, v_clientes.apellido AS cliente_apellido 
+    FROM v_cursos 
+    LEFT JOIN v_empleados ON v_cursos.instructor = v_empleados.idempleado 
+    LEFT JOIN v_cursos_clientes ON v_cursos.idcurso = v_cursos_clientes.idcurso 
+    LEFT JOIN v_clientes ON v_cursos_clientes.idcliente = v_clientes.idcliente 
+    WHERE precio = 50 
+    ORDER BY titulo, cliente_apellido, cliente_nombre;

@@ -1,0 +1,163 @@
+1) SELECT COUNT(*) AS num_mascotas 
+FROM v_mascotas;
+
+2) SELECT SUM(cantidad * precioreal) AS ingresos
+FROM v_pedidos_productos;
+
+3) SELECT descripcion,
+       MIN(precio_venta - precio_compra) AS ganancia_minima,
+       MAX(precio_venta - precio_compra) AS ganancia_maxima,
+       AVG(precio_venta - precio_compra) AS ganancia_media
+FROM v_productos
+GROUP BY descripcion;
+
+4) SELECT COUNT(DISTINCT trabajo) AS num_categorias 
+FROM v_empleados;
+
+5) SELECT COUNT(*) AS num_clientes_B
+FROM v_clientes
+WHERE ciudad LIKE 'B%';
+
+Teniendo en cuenta null como que puede empezar por B:
+SELECT COUNT(*) AS num_clientes
+FROM v_clientes
+WHERE ciudad LIKE 'B%' 
+OR ciudad IS NULL;
+
+6) SELECT COUNT(*) AS cursos_sin_instructor
+FROM v_cursos
+WHERE instructor IS NULL;
+
+7) SELECT tipoanimal, COUNT(*) AS num_cursos
+FROM v_cursos
+GROUP BY tipoanimal
+ORDER BY num_cursos DESC;
+
+8) SELECT trabajo,
+       AVG(salario) AS salario_medio,
+       MAX(salario) AS salario_maximo,
+       MIN(salario) AS salario_minimo,
+       COUNT(*) AS num_empleados
+FROM v_empleados
+GROUP BY trabajo
+ORDER BY num_empleados DESC;
+
+9) SELECT p.nombre,
+       AVG(pr.precio_compra) AS precio_medio_compra,
+       AVG(pr.precio_venta) AS precio_medio_venta
+FROM v_proveedores p
+LEFT JOIN v_productos pr ON p.idproveedor = pr.idproveedor
+GROUP BY p.nombre
+ORDER BY p.nombre;
+
+10) SELECT a.nombre AS tipo_animal,
+       COUNT(m.idmascota) AS num_mascotas
+FROM v_animales a
+LEFT JOIN v_mascotas m ON a.tipoanimal = m.tipoanimal
+GROUP BY a.nombre
+ORDER BY num_mascotas DESC, tipo_animal;
+
+11) SELECT ciudad, COUNT(*) AS num_clientes
+FROM v_clientes
+GROUP BY ciudad
+HAVING COUNT(*) < 3;
+
+12) SELECT c.nombre, c.apellido
+FROM v_clientes c
+JOIN v_pedidos p ON c.idcliente = p.idcliente
+GROUP BY c.nombre, c.apellido
+HAVING COUNT(p.idpedido) > 2
+ORDER BY c.apellido, c.nombre;
+
+13) SELECT p.descripcion, p.stock, SUM(pp.cantidad) AS total_vendido
+FROM v_productos p
+JOIN v_pedidos_productos pp ON p.idproducto = pp.idproducto
+GROUP BY p.descripcion, p.stock
+HAVING p.stock < SUM(pp.cantidad);
+
+14) SELECT e.*
+FROM v_empleados e
+JOIN v_clientes c 
+ON UPPER(e.apellidos) = UPPER(c.apellido);
+
+15) SELECT nombre, apellidos, salario 
+FROM v_empleados 
+WHERE salario BETWEEN 0.75 * (SELECT AVG(salario) FROM v_empleados) 
+AND 1.25 * (SELECT AVG(salario) FROM v_empleados) 
+ORDER BY salario, apellidos;
+
+16) SELECT titulo
+FROM v_cursos
+WHERE precio = (SELECT MAX(precio) FROM v_cursos);
+
+17) SELECT c.titulo
+FROM v_cursos c
+JOIN v_cursos_clientes cc ON c.idcurso = cc.idcurso
+GROUP BY c.titulo
+HAVING COUNT(cc.idcliente) = (
+    SELECT MAX(client_count)
+    FROM (
+        SELECT COUNT(idcliente) AS client_count
+        FROM v_cursos_clientes
+        GROUP BY idcurso));
+
+18.a) SELECT nombre
+FROM v_proveedores p
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM v_productos pr
+    WHERE p.idproveedor = pr.idproveedor
+)
+ORDER BY nombre; 
+
+18.b) SELECT nombre
+FROM v_proveedores p
+LEFT JOIN v_productos pr ON p.idproveedor = pr.idproveedor
+GROUP BY p.nombre
+HAVING COUNT(pr.idproducto) = 0
+ORDER BY nombre;
+
+18.c) SELECT nombre
+FROM v_proveedores
+WHERE idproveedor NOT IN (
+    SELECT DISTINCT idproveedor
+    FROM v_productos
+)
+ORDER BY nombre;
+
+19.a) SELECT c.nombre, c.apellido
+FROM v_clientes c
+LEFT JOIN v_pedidos p ON c.idcliente = p.idcliente
+LEFT JOIN v_cursos_clientes cc ON c.idcliente = cc.idcliente
+WHERE p.idpedido IS NULL AND cc.idcurso IS NULL
+ORDER BY c.apellido, c.nombre;
+
+19.b) SELECT nombre, apellido
+FROM v_clientes
+WHERE idcliente NOT IN (
+    SELECT idcliente FROM v_pedidos
+    UNION
+    SELECT idcliente FROM v_cursos_clientes
+)
+ORDER BY apellido, nombre;
+
+19.c) SELECT nombre, apellido
+FROM v_clientes c
+WHERE NOT EXISTS (
+    SELECT 1 FROM v_pedidos p WHERE c.idcliente = p.idcliente
+)
+AND NOT EXISTS (
+    SELECT 1 FROM v_cursos_clientes cc WHERE c.idcliente = cc.idcliente
+)
+ORDER BY apellido, nombre;
+
+
+20) SELECT COUNT(*) AS num_personas
+FROM (
+    SELECT email
+    FROM v_clientes
+    WHERE email LIKE '%@gmail.com' OR email LIKE '%@hotmail.com'
+    UNION ALL
+    SELECT email
+    FROM v_empleados
+    WHERE email LIKE '%@gmail.com' OR email LIKE '%@hotmail.com');

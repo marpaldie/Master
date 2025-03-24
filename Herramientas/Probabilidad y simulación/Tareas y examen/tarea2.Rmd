@@ -1,0 +1,154 @@
+---
+title: "<font size=9>Sesión de Probabilidad y Simulación:</font> <br> <font size=12> **Regresión Lineal y Análisis de Correlación**</font>"
+author: "María Pallares Diez"
+date: "Computación y Programación en R"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, comment=" ", out.width = "0.7\textwidth", tidy = FALSE, fig.align = "center", fig.height = 4, fig.width = 6, prompt = TRUE, eval = TRUE)
+library(haven)
+library(MASS)
+library(dplyr)
+library(fitdistrplus)
+library(ggplot2)
+library(survival)
+```
+
+# Introducción
+
+En esta sesión se aborda el análisis de regresión lineal y correlación.
+Aplicaremos conceptos teóricos, visualizaciones y simulaciones en R.
+
+# Carga de Librerías y Datos
+
+```{r librerias-y-datos}
+# Cargar datos
+# Cambiar "ruta_al_archivo.sav" por la ubicación del archivo real.
+datos <- read_sav("_Pallarés_Díez.sav")
+head(datos)
+```
+
+# Matriz de Correlación
+
+## Calcular Correlaciones
+
+```{r matriz-correlacion}
+correlaciones <- cor(datos, use = "complete.obs")
+correladas <- which(correlaciones > 0.5 & correlaciones < 1, arr.ind = TRUE)
+resultado_correlaciones <- data.frame(
+  Variable_X = colnames(correlaciones)[correladas[, 1]],
+  Variable_Y = colnames(correlaciones)[correladas[, 2]],
+  Correlacion = correlaciones[correladas]
+)
+resultado_correlaciones <- resultado_correlaciones %>% filter(Variable_X != Variable_Y)
+print(resultado_correlaciones)
+```
+
+# Visualización de Correlaciones
+
+## Gráfico de Relación
+
+```{r visualizacion-variables}
+# Variables seleccionadas
+peso <- datos$Peso
+cadera <- datos$Cadera
+
+# Relación Peso y Cadera
+plot(peso, cadera, main = "Relación entre Peso y Cadera", 
+     xlab = "Peso (kg)", ylab = "Cadera (cm)", pch = 19, col = "blue")
+```
+
+# Modelo Lineal
+
+## Ajuste del Modelo
+
+```{r modelo-lineal}
+modelo <- lm(cadera ~ peso)
+resumen_modelo <- summary(modelo)
+print(resumen_modelo)
+```
+
+## Visualización del Modelo
+
+```{r visualizacion-modelo-lineal}
+plot(peso, cadera, main = "Regresión Lineal", 
+     xlab = "Peso (kg)", ylab = "Cadera (cm)", pch = 19, col = "blue")
+abline(modelo, col = "red", lwd = 2)
+```
+
+# Simulación
+
+## Generación de Datos Simulados
+
+```{r simulacion}
+# Simulación basada en el modelo
+beta_0 <- resumen_modelo$coefficients[1, 1]
+beta_1 <- resumen_modelo$coefficients[2, 1]
+sigma <- resumen_modelo$sigma
+mu <- beta_0 + beta_1 * peso
+Y_sim <- rnorm(length(peso), mean = mu, sd = sigma)
+```
+
+## Histograma de Simulación
+
+```{r histograma-simulacion}
+# Crear nuevo gráfico antes de agregar líneas adicionales
+hist(Y_sim, probability = TRUE, main = "Histograma de Simulación de Y|X", 
+     xlab = "Y", ylab = "Densidad", col = "lightblue")
+
+# Generar densidad y agregarla
+if (length(Y_sim) > 1) {
+  dens <- density(Y_sim)
+  lines(dens, col = "blue", lwd = 2)
+}
+
+# Agregar curva de densidad teórica
+curve(dnorm(x, mean = mean(Y_sim), sd = sigma), add = TRUE, col = "red", lwd = 2)
+```
+
+# Análisis Marginal
+
+## Distribución Marginal de Peso
+
+```{r distribucion-peso}
+hist(peso, breaks = 30, main = "Distribución Marginal de Peso", 
+     xlab = "Peso (kg)", col = "lightgreen")
+```
+
+## Esperanza de Peso
+
+```{r esperanza-peso}
+esperanza_x <- mean(peso)
+cat("La esperanza de Peso (E(X)) es:", esperanza_x)
+```
+
+# Densidad Conjunta
+
+## Estimación de Parámetros
+
+```{r densidad-conjunta}
+mu_X <- mean(peso)
+mu_Y <- mean(cadera)
+sigma_X <- sd(peso)
+sigma_Y <- sd(cadera)
+rho <- cor(peso, cadera)
+cat("Densidad conjunta estimada:\n")
+cat("f(x, y) =", 1 / (2 * pi * sigma_X * sigma_Y * sqrt(1 - rho^2)), 
+    "* exp(-1 / (2 * (1 -", rho^2, ")))")
+```
+
+## Visualización de Densidad
+
+```{r visualizacion-densidad}
+library(MASS)
+densidad_conjunta <- kde2d(peso, cadera, n = 50)
+persp(densidad_conjunta, main = "Densidad Conjunta de X e Y", 
+      xlab = "Peso", ylab = "Cadera", zlab = "Densidad", 
+      theta = 30, phi = 30, col = "lightblue")
+```
+
