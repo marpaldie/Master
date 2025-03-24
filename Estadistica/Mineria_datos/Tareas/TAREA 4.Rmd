@@ -1,0 +1,138 @@
+---
+title: "TAREA4"
+author: "María Pallares Diez"
+date: "2025-02-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Contexto del Problema
+Los datos proporcionados corresponden a un estudio realizado por 20 probadores profesionales que evaluaron la calidad de diez marcas de pan de molde. A partir de estas evaluaciones, se obtuvo:
+
+  -Matriz de disimilaridades (dist.pan): Resume las diferencias percibidas entre las marcas de pan evaluadas.
+
+  -Características de los panes (pan.variables):
+
+    -Tipo: Blanco (B), Integral (I), Sin Gluten (SG).
+
+    -Marca: MC1, MC2, MB (Marca Blanca).
+
+    -Duración: Duración antes de la caducidad (1 o 2 semanas).
+
+El objetivo de esta tarea es realizar un MDS no métrico para representar gráficamente las disimilaridades entre las marcas de pan, interpretar las proximidades/diferencias entre ellas y analizar la bondad del ajuste.
+
+### 1. Preparación de los Datos
+
+```{r}
+datos <-load("ComparaPanMolde.RData")
+library(MASS)
+datos
+# Verificar la estructura de los objetos
+str(dist.pan)       # Matriz de disimilaridades
+str(pan.variables)  # DataFrame con variables adicionales
+```
+
+### 2. Aplicación de MDS No Métrico
+
+```{r}
+# Aplicar MDS no métrico con 2 dimensiones
+mds_result <- isoMDS(dist.pan, k = 2)
+
+# Extraer coordenadas de los 10 tipos de pan
+mds_coordinates <- as.data.frame(mds_result$points)
+colnames(mds_coordinates) <- c("Dim1", "Dim2")
+
+# Agregar información adicional de los panes desde `pan.variables`
+mds_coordinates$Tipo <- pan.variables$Tipo
+mds_coordinates$Marca <- pan.variables$Marca
+mds_coordinates$Duracion <- pan.variables$Duracion
+
+# Asignar las etiquetas de las marcas como nombres de las filas
+rownames(mds_coordinates) <- paste0("Marca ", 1:nrow(mds_coordinates))
+```
+
+### 3. Visualización de los Resultados
+
+```{r}
+# Visualizar los resultados del MDS no métrico
+library(ggplot2)
+
+ggplot(mds_coordinates, aes(x = Dim1, y = Dim2, label = rownames(mds_coordinates), color = Tipo, shape = Marca)) +
+  geom_point(size = 4) +
+  geom_text(vjust = -0.5, size = 4) +
+  theme_minimal() +
+  labs(
+    title = "MDS No Métrico de las Marcas de Pan de Molde",
+    x = "Dimensión 1",
+    y = "Dimensión 2"
+  ) +
+  scale_color_manual(values = c("B" = "blue", "I" = "brown", "SG" = "green")) +
+  scale_shape_manual(values = c("MC1" = 16, "MC2" = 17, "MB" = 18))
+
+```
+
+### 4. Evaluación de la Bondad del Ajuste
+
+El valor de STRESS mide cuán bien el modelo representa las disimilaridades originales. Valores bajos indican un buen ajuste.
+
+```{r}
+# Evaluación de la bondad del ajuste con el STRESS
+stress_value <- mds_result$stress
+cat("El valor de STRESS del ajuste es:", stress_value, "\n")
+```
+
+
+### ANÁLISIS DEL GRÁFICO MDS NO MÉTRICO
+
+A partir del gráfico generado mediante el análisis MDS no métrico, se pueden identificar las marcas de pan más próximas entre sí y aquellas que se distinguen más de las demás:
+
+Marcas más próximas entre sí
+
+  -**Marca 1, Marca 6 y Marca 9**:Las 3 marcas son del Tipo B (Blanco) y pertenecen a la misma marca (MC2). Esto indica alta similitud en las características percibidas por los probadores. 
+
+  -**Marca 2 y Marca 8**:Estas marcas son del Tipo SG (Sin Gluten), aunque de marcas distintas (MC1 y MB, respectivamente). Esto sugiere que el Tipo SG predomina en la percepción de similitud, más allá de la marca.
+
+  -**Marca 3 y Marca 7**:Ambas pertenecen al Tipo I (Integral) y a marcas diferentes (MC1 y MB). Esto sugiere una homogeneidad percibida en los panes integrales.
+  
+
+Marcas que se distinguen más de las demás
+
+  -**Marca 10 (Tipo SG, Marca MB)**:Aunque es del mismo tipo que Marca 2 y Marca 8, está notablemente alejada. Esto indica características específicas de esta marca, lo que la hace diferente en la percepción de los probadores.
+
+  -**Marca 4 (Tipo I, Marca MB)**:A pesar de ser integral, se encuentra alejada de otras marcas del mismo tipo (Marca 3 y Marca 7). Esto podría deberse a diferencias en la calidad o composición percibida.
+
+  -**Marca 5 (Tipo B, Marca MC1)**:Esta marca se distingue de otros panes blancos (Marca 1 y Marca 6), indicando características únicas dentro del grupo.
+  
+  
+### ANÁLISIS DE LA BONDAD DEL AJUSTE
+
+El valor de **STRESS** obtenido en el análisis fue `r stress_value` (o aproximadamente `r round(stress_value / 100, 4)` en forma decimal). La fórmula utilizada para calcular el **STRESS**, propuesta por Kruskal (1964), es:
+
+$$
+S = \sqrt{\frac{\sum_{i<j} (d_{ij} - \hat{d}_{ij})^2}{\sum_{i<j} d_{ij}^2}}
+$$
+
+
+Esta fórmula mide la discrepancia entre las disimilaridades originales (\(d_{ij}\)) y las distancias proyectadas (\(\hat{d}_{ij}\)).
+
+### Interpretación según Kruskal (1964)
+
+De acuerdo con los criterios de Kruskal, los valores de **STRESS** se interpretan de la siguiente forma:
+
+| **Valor de STRESS** | **Interpretación**     |
+|---------------------|------------------------|
+| > 0.2              | Pobre                  |
+| 0.1 - 0.2          | Aceptable              |
+| 0.05 - 0.1         | Bueno                  |
+| 0.025 - 0.05       | Mejor                  |
+| 0.0 - 0.025        | Excelente              |
+
+Para el valor obtenido (**`r round(stress_value / 100, 4)`**), el ajuste del modelo es **aceptable**, pero está en el límite inferior del rango. Esto indica que el modelo MDS logra representar de manera razonable las disimilaridades originales, aunque aún existe margen de mejora.
+
+
+### CONCLUSIÓN
+
+El análisis MDS no métrico proporcionó una representación razonable de las relaciones entre las marcas de pan. Las marcas del mismo tipo tienden a agruparse, mientras que las diferencias entre marcas se explican parcialmente por características específicas de cada producto. Aunque el ajuste es aceptable, se podrían explorar ajustes adicionales para mejorar la representación de las disimilaridades percibidas.

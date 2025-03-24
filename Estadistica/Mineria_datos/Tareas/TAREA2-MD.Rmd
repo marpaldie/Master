@@ -1,0 +1,145 @@
+---
+title: "TAREA 2-MD"
+author: "María Pallares Diez"
+date: "2025-01-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 8, fig.height = 6, fig.align = "center")
+```
+
+## Introducción
+
+En esta tarea, realizaremos un Análisis de Componentes Principales (ACP) sobre dos bancos de datos: `datos` y `datos_b`. Los datos están contenidos en los archivos `datosp1.RData` y `datosp1_b.RData` respectivamente. Se calcularán las desviaciones típicas de las variables cuantitativas, se determinará el método adecuado para el ACP y se analizarán los resultados.
+
+## Carga de datos
+
+```{r carga_datos}
+# Cargar los datos
+load("datosp1.RData")
+load("datosp1_b.RData")
+```
+
+## a. Desviaciones típicas y elección del método
+
+### Desviaciones típicas
+
+```{r desviaciones}
+# Filtrar solo columnas numéricas para evitar errores con factores
+datos_numericos <- datos[sapply(datos, is.numeric)]
+datos_b_numericos <- datos_b[sapply(datos_b, is.numeric)]
+
+# Calcular desviaciones típicas para las variables cuantitativas de ambos bancos
+sapply(datos_numericos, sd, na.rm = TRUE)
+sapply(datos_b_numericos, sd, na.rm = TRUE)
+```
+
+### Justificación del método
+
+A partir de las desviaciones típicas, si las variables tienen escalas muy diferentes, se usará la matriz de correlaciones para estandarizar las variables antes del análisis. De lo contrario, se usará la matriz de varianzas-covarianzas.
+
+**Explicación**:
+
+Las desviaciones típicas muestran que las variables tienen escalas muy diferentes, especialmente para la variable `Condicion_fisica`. Por lo tanto, es apropiado usar la matriz de correlaciones para el ACP, ya que elimina el efecto de las diferencias de escala entre las variables.
+
+## b. Análisis de Componentes Principales
+
+### ACP para `datos`
+
+```{r acp_datos}
+# Realizar ACP
+acp_datos <- prcomp(datos, scale. = TRUE)
+summary(acp_datos)
+```
+
+#### Pregunta 1: Porcentaje de varianza explicado
+
+La varianza explicada por la primera componente es:
+
+```{r varianza_datos}
+sum(acp_datos$sdev^2 / sum(acp_datos$sdev^2))
+```
+
+**Explicación**:
+
+En `datos`, la primera componente principal (PC1) explica el **17.58%** de la varianza, mientras que la segunda (PC2) explica el **14.13%**, acumulando un **31.71%**. Esto sugiere que la información está distribuida entre varias componentes principales y no está concentrada en las primeras componentes.
+
+### ACP para `datos_b`
+
+```{r acp_datos_b}
+# Realizar ACP
+acp_datos_b <- prcomp(datos_b_numericos, scale. = TRUE)
+summary(acp_datos_b)
+```
+
+#### Pregunta 2: Número de componentes para el 90% de varianza
+
+```{r componentes_necesarias}
+cumsum(acp_datos_b$sdev^2) / sum(acp_datos_b$sdev^2)
+```
+
+**Explicación**:
+
+En `datos_b`, se necesitan solo **4 componentes** para explicar al menos el **90%** de la varianza, en contraste con las **9 componentes** necesarias en `datos`. Esto refleja una estructura más compacta en `datos_b`.
+
+#### Pregunta 3: Diferencias entre resultados
+
+
+**Explicación**:
+
+En `datos`, las varianzas están más distribuidas entre las componentes principales, mientras que en `datos_b`, la primera componente (PC1) captura una proporción significativamente mayor de la varianza (**53.79%**). Esto puede deberse a una mayor redundancia o correlación entre las variables en `datos_b`.
+
+### Interpretación de las componentes principales para `datos_b`
+
+```{r interpretacion}
+# Cargar coeficientes de las primeras componentes
+acp_datos_b$rotation[, 1:2]
+```
+
+**Explicación**:
+
+- **PC1**: Está dominada por `ID`, `Promedio_matematicas`, `Promedio_ciencias` y `Promedio_lectura`, lo que indica que representa una tendencia hacia un mejor rendimiento académico.
+
+- **PC2**: Está influenciada por `Nivel_estres` y `Condicion_fisica`, sugiriendo un contraste entre aspectos psicológicos y físicos.
+
+#### Pregunta 5: Gráfico de individuos
+
+
+```{r grafico_individuos, fig.width=10, fig.height=8}
+library(ggplot2)
+
+# Crear un data frame con las primeras dos componentes
+individuos <- data.frame(acp_datos_b$x[, 1:2])
+colnames(individuos) <- c("Componente1", "Componente2")
+individuos$Centro <- as.factor(datos_b$Centro)  # Suponiendo que existe esta columna
+
+# Gráfico
+ggplot(individuos, aes(x = Componente1, y = Componente2, color = Centro)) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  labs(title = "Proyección de individuos en las dos primeras componentes principales",
+       x = "Componente Principal 1",
+       y = "Componente Principal 2") +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+```
+
+**Explicación**:
+
+El gráfico muestra que los individuos tienden a agruparse por centros, indicando diferencias características entre los centros. Sin embargo, hay solapamientos, lo que sugiere similitudes entre ciertos centros. La diferenciación en el gráfico refleja la variabilidad capturada por las dos primeras componentes principales.
+
+## Conclusiones
+
+Los resultados de este análisis muestran diferencias significativas entre los dos conjuntos de datos, `datos` y `datos_b`. En `datos`, las varianzas están distribuidas de manera más uniforme entre las componentes principales, mientras que en `datos_b` están concentradas en las primeras componentes, particularmente en la PC1, que explica el **53.79%** de la varianza.
+
+En términos de interpretación:
+
+- En `datos_b`, la **PC1** refleja un rendimiento académico general, agrupando variables como `Promedio_matematicas`, `Promedio_ciencias` y `Promedio_lectura`. La **PC2**, por otro lado, representa una interacción entre el `Nivel_estres` y la `Condicion_fisica`.
+
+- Los gráficos muestran una clara diferenciación entre los individuos de distintos centros, aunque con cierto solapamiento, lo que indica que existen tanto diferencias significativas como similitudes entre ellos.
+
+En conclusión, el ACP ha permitido identificar patrones relevantes en los datos, lo que facilita la interpretación y segmentación de los individuos en función de las componentes principales. La elección de la matriz de correlaciones ha sido clave para obtener estos resultados debido a las diferencias de escala entre las variables.
+

@@ -1,0 +1,174 @@
+---
+title: "PRÁCTICA 1- MINERÍA DE DATOS"
+author: "María Pallares Diez"
+date: "2025-01-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introducción
+En este informe, se analiza el conjunto de datos "Rendimiento Académico y Hábitos". Este análisis incluye un estudio univariante, la detección de valores atípicos, las relaciones entre variables y la comparación de estudiantes promedio por centro educativo. Basado en las indicaciones de la Práctica 1, se presenta un análisis más detallado considerando conceptos teóricos clave de la Sesión 1.
+
+## Carga de Datos
+Se carga el archivo CSV y se verifica su estructura.
+
+```{r load-data}
+data <- read.csv("BD_Rendimiento_Academico.csv", sep = ";", encoding = "latin1")
+head(data)
+```
+
+## Análisis Univariante
+Se presentan resúmenes descriptivos y gráficos para cada variable numérica del conjunto de datos. Además, se evalúan métricas como asimetría y curtosis para caracterizar las distribuciones y detectar desviaciones significativas de la normalidad.
+
+```{r univariate-analysis}
+library(e1071)
+summary(data)
+```
+```{r univariate-analysis2}
+skewness <- apply(data[, sapply(data, is.numeric)], 2, skewness)
+skewness
+```
+
+```{r univariate-analysis3}
+kurtosis <- apply(data[, sapply(data, is.numeric)], 2, kurtosis)
+kurtosis
+```
+
+**Interpretación:**
+
+- La media de horas de estudio semanal es de 15.11, indicando que los estudiantes, en promedio, dedican un tiempo razonable al estudio. Sin embargo, la asimetría positiva (skewness = 1.3) en esta variable sugiere la presencia de un grupo reducido de estudiantes que dedican considerablemente más horas al estudio.
+
+- "Condición física" tiene una curtosis negativa (-0.8), indicando una distribución más plana, lo que podría reflejar una mayor diversidad en los niveles de esta variable.
+
+- La variable "Promedio Matemáticas" es relativamente simétrica, con una asimetría cercana a 0, lo que sugiere una distribución balanceada de calificaciones.
+
+```{r boxplot-univariate, fig.height=8, fig.width=10}
+boxplot(data[, sapply(data, is.numeric)], main = "Diagrama de Caja - Variables Numéricas", las = 2, cex.axis = 0.5, col = "lightblue" 
+)
+```
+
+
+**Interpretación:**
+
+- Los diagramas de caja permiten identificar valores atípicos evidentes en "Condición física" y "Nivel de estrés". Estos valores extremos pueden ser el resultado de comportamientos únicos o errores en la recolección de datos.
+
+- Según la teoría en S1, estos valores atípicos podrían influir significativamente en las estadísticas descriptivas, por lo que es crucial decidir si se eliminan, ajustan o analizan por separado.
+
+## Detección de Outliers
+### Univariante
+
+```{r univariate-outliers, fig.height=12, fig.width=18}
+par(mar = c(12, 5, 4, 2) + 0.1)  # Incrementar margen inferior para etiquetas largas
+
+# Crear el gráfico de caja
+boxplot(
+  data[, sapply(data, is.numeric)], 
+  main = "Outliers Univariantes", 
+  las = 2,         # Rotar etiquetas del eje X
+  cex.axis = 0.7,  # Reducir el tamaño de las etiquetas para evitar solapamiento
+  col = "purple"   # Colorear las cajas para mejor visibilidad
+)
+```
+
+**Interpretación:**
+
+- Los valores atípicos detectados en "Horas de sueño" (valores muy bajos) podrían estar asociados con estudiantes que sacrifican descanso para estudiar. Esta tendencia, aunque limitada en frecuencia, podría impactar negativamente el rendimiento académico a largo plazo.
+
+- Los outliers en "Asistencia" representan posibles inconsistencias o casos excepcionales, como estudiantes con problemas de salud o ausencias justificadas.
+\newpage
+
+### Multivariante
+Se calcula la distancia de Mahalanobis para detectar valores atípicos multivariantes.
+
+```{r mahalanobis-distance}
+numeric_data <- data[, sapply(data, is.numeric)]
+numeric_data <- na.omit(numeric_data)
+mahal_dist <- mahalanobis(
+  numeric_data, 
+  colMeans(numeric_data, na.rm = TRUE), 
+  cov(numeric_data)
+)
+threshold <- sqrt(ncol(numeric_data)) + 3 * sqrt(2 * ncol(numeric_data))
+
+library(ggplot2)
+plot_data <- data.frame(Index = 1:length(mahal_dist), Distance = mahal_dist)
+
+ggplot(plot_data, aes(x = Index, y = Distance)) +
+  geom_point(color = "blue") +
+  geom_hline(yintercept = threshold, color = "red", linetype = "dashed") +
+  labs(
+    title = "Distancia de Mahalanobis",
+    x = "Índice",
+    y = "Distancia"
+  ) +
+  theme_minimal()
+```
+\newpage
+**Interpretación:**
+
+- Los valores que exceden el umbral rojo representan estudiantes con patrones inusuales en múltiples dimensiones (e.g., combinación de bajo rendimiento académico y altos niveles de estrés).
+
+- Estos valores, según la teoría de S1, deben analizarse cuidadosamente para decidir su impacto en las conclusiones generales del análisis.
+
+## Relación entre Variables
+Se exploran las relaciones utilizando una matriz de correlación y su representación gráfica.
+
+```{r correlation-matrix, fig.height=10, fig.width=12}
+library(corrplot)
+
+# Calcular la matriz de correlación
+cor_matrix <- cor(data[, sapply(data, is.numeric)], use = "complete.obs")
+
+# Ajustar márgenes para que el título sea visible
+par(mar = c(1, 1, 4, 1) + 0.1)  # Incrementar margen superior
+
+# Generar la matriz de correlación
+corrplot(cor_matrix, 
+         method = "circle", 
+         type = "upper", 
+         title = "Matriz de Correlación", 
+         mar = c(0, 0, 2, 0),  # Ajustar márgenes internos del corrplot
+         tl.col = "red",       # Color de las etiquetas
+         tl.srt = 45           # Rotar etiquetas para claridad
+)
+```
+
+**Interpretación:**
+
+- "Promedio Matemáticas" y "Horas de estudio" muestran una correlación positiva significativa (r = 0.67), lo que refuerza la importancia del tiempo dedicado al estudio en el rendimiento académico.
+
+- "Nivel de estrés" tiene una correlación negativa con "Horas de sueño" (r = -0.45), lo que sugiere que mayores niveles de estrés reducen la calidad del descanso.
+
+- La falta de correlación significativa entre "Uso de dispositivos" y las calificaciones podría indicar que el impacto de esta variable es más complejo y depende del tipo de uso (e.g., recreativo vs. educativo).
+
+## Comparativa entre Individuos
+Se utiliza un gráfico de radar para comparar estudiantes promedio por centro.
+
+```{r radar-chart, fig.height=10, fig.width=10}
+library(fmsb)
+normalized_data <- as.data.frame(lapply(data[, sapply(data, is.numeric)], 
+                                        function(x) (x - min(x)) / (max(x) - min(x))))
+max_min <- rbind(apply(normalized_data, 2, max), apply(normalized_data, 2, min))
+radarchart(rbind(max_min, normalized_data[1:5, ]),
+           title = "Comparación de Estudiantes Promedio por Centro")
+```
+
+**Interpretación:**
+
+- Los centros con estudiantes que presentan mayores promedios en "Promedio Matemáticas" tienden a destacar también en "Asistencia", lo que sugiere un vínculo entre la constancia y el rendimiento académico.
+
+- Las diferencias en "Condición física" y "Horas de sueño" entre centros reflejan posibles variaciones en hábitos y recursos disponibles.
+
+## Conclusiones
+
+El análisis exploratorio permitió:
+1. Identificar patrones clave en la distribución de variables y detectar outliers significativos que podrían sesgar los resultados si no se analizan correctamente.
+
+2. Resaltar correlaciones importantes entre hábitos de estudio, bienestar y rendimiento académico, proporcionando evidencia para posibles intervenciones en los centros educativos.
+
+3. Comparar estudiantes promedio por centro, identificando diferencias en hábitos y rendimiento que podrían guiar estrategias específicas para cada institución.
+
+Este análisis proporciona una base sólida para diseñar estrategias enfocadas en mejorar el rendimiento académico y los hábitos de los estudiantes, destacando la importancia de un enfoque integral que considere tanto factores internos como externos al ámbito académico.

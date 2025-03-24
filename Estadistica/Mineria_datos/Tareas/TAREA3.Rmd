@@ -1,0 +1,364 @@
+---
+title: "TAREA3"
+author: "María Pallares Diez"
+date: "2025-01-23"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introducción
+
+Este documento presenta un análisis exhaustivo de clúster basado en los datos del archivo `datosp1_b.RData`. El objetivo principal es identificar los clústeres bien definidos siguiendo los métodos explicados en las clases de teoría.
+
+## Carga y Exploración de Datos
+
+```{r}
+load("datosp1_b.RData")
+datos<-datos_b
+str(datos)
+summary(datos)
+```
+
+## Preprocesamiento
+
+### Estandarización y Normalización
+
+Dado que las variables pueden tener diferentes escalas, realizamos estandarización para garantizar la comparabilidad entre ellas.
+En el proceso de análisis de clustering, se eliminaron las variables `ID` y `Centro` debido a las siguientes razones:
+
+  - La variable `ID` es únicamente un identificador único para las observaciones y no contiene información útil para agrupar datos basados en similitudes.
+    
+ - La variable `Centro`, aunque categórica, no aporta información que diferencie significativamente las observaciones desde una perspectiva de clustering, ya que está relacionada con una clasificación previa.
+
+```{r}
+library(dplyr)
+datos <- datos %>% select(-ID, -Centro)
+datos_numericos <- datos %>% select(where(is.numeric))
+datos_estandarizados <- as.data.frame(scale(datos_numericos))
+summary(datos_estandarizados)
+```
+
+### Análisis Exploratorio
+
+Antes de proceder con el análisis, se verifica la posible presencia de outliers y patrones generales.
+
+```{r}
+library(ggplot2)
+pairs(datos_estandarizados)
+```
+## Análisis del Gráfico de Pares
+
+El gráfico de pares muestra las relaciones entre las diferentes variables numéricas del conjunto de datos estandarizados, permitiendo identificar patrones, correlaciones, posibles agrupaciones y valores atípicos que podrían influir en el análisis de clustering.
+
+Correlaciones entre Variables:
+
+- Algunas variables, como `Promedio_matematicas` y `Promedio_ciencias`, presentan una fuerte correlación positiva, indicando que los estudiantes con mejor desempeño en matemáticas tienden a destacar también en ciencias.
+
+- De manera similar, `Promedio_lectura` y `Asistencia` muestran una relación positiva, lo que sugiere que la asistencia regular puede estar asociada con mejores resultados en lectura.
+
+- Estas correlaciones sugieren que estas variables podrían contribuir juntas a la formación de clusters, simplificando el problema al reducir la dimensionalidad efectiva.
+
+Dispersión de los Datos:
+
+- Variables como `Nivel_estres` y `Horas_sueño` exhiben distribuciones más dispersas, sin patrones evidentes de relación con otras variables, lo que indica que podrían aportar información complementaria para diferenciar observaciones en el espacio multidimensional.
+
+- De forma similar, `Uso_dispositivos` muestra cierta dispersión, aunque su influencia en la segmentación dependerá de cómo interactúe con otras variables.
+
+
+Outliers (Valores Atípicos):
+
+- Se detectan valores atípicos en algunas variables donde se observan individuos con valores significativamente alejados del resto.
+
+- Estos outliers podrían distorsionar las métricas de distancia, como la euclidiana, y afectar los resultados del clustering si no se tratan adecuadamente.
+
+
+Clusters Potenciales:
+
+- Aunque no se identifican agrupaciones claras directamente desde el gráfico, algunos patrones de alineación, como los observados entre `Promedio_matematicas` y `Promedio_ciencias`, sugieren la existencia de clusters naturales en el espacio multidimensional.
+
+- Esto puede ser confirmado y detallado aplicando métodos de clustering como K-means o jerárquico.
+
+## Encontrar la mejor combinación de distancias y métodos jerárquicos
+La función 'find_best_clustering' está diseñada para probar todas las combinaciones posibles de métricas de distancia y métodos de clustering jerárquico con el objetivo de encontrar la combinación que maximiza la correlación cofenética. La correlación cofenética mide qué tan bien el dendrograma generado refleja las distancias originales entre las observaciones.
+
+```{r}
+find_best_clustering <- function(datos_estandarizados) {
+  library(cluster)
+  library(stats)
+  distance_methods <- c("euclidean", "maximum", "manhattan", "canberra", "binary", "minkowski")
+  hclust_methods <- c("average", "single", "complete", "ward.D", "ward.D2", "mcquitty", "median", "centroid")
+  results <- data.frame(
+    Distance = character(),
+    Method = character(),
+    CopheneticCorrelation = numeric(),
+    stringsAsFactors = FALSE
+  )
+  for (distance in distance_methods) {
+    dist_matrix <- tryCatch(
+      dist(datos_estandarizados, method = distance),
+      error = function(e) {
+        message(paste("Error with distance:", distance, "-", e$message))
+        return(NULL)
+      }
+    )
+    if (!is.null(dist_matrix)) {
+      for (method in hclust_methods) {
+        # Calcular el modelo jerárquico
+        hclust_model <- tryCatch(
+          hclust(dist_matrix, method = method),
+          error = function(e) {
+            message(paste("Error with method:", method, "-", e$message))
+            return(NULL)
+          }
+        )
+        if (!is.null(hclust_model)) {
+          if (sd(as.vector(dist_matrix)) > 0 && sd(cophenetic(hclust_model)) > 0) {
+            cophenetic_corr <- cor(cophenetic(hclust_model), dist_matrix)
+          } else {
+            cophenetic_corr <- NA
+          }
+          results <- rbind(results, data.frame(
+            Distance = distance,
+            Method = method,
+            CopheneticCorrelation = cophenetic_corr
+          ))
+        }
+      }
+    }
+  }
+  results <- results[!is.na(results$CopheneticCorrelation), ]
+  best_result <- results[which.max(results$CopheneticCorrelation), ]
+  list(
+    BestCombination = best_result,
+    AllResults = results
+  )
+}
+resultado <- find_best_clustering(datos_estandarizados)
+print(resultado$BestCombination)
+View(resultado$AllResults)
+```
+Vemos que la combinación que ofrece una mayor correlación cofenética es la distancia de **Canberra** con el método jerárquico **Average**
+
+### Cálculo de Distancias
+
+Se han probado diferentes métricas de distancia para determinar cuál se adapta mejor a las características de los datos y ofrece una representación más fiel de las relaciones entre las observaciones. Finalmente, hemos seleccionado la **distancia Canberra**, ya que obtuvo la correlación cofenética más alta (**0.7701**), lo que indica que el dendrograma generado por esta métrica refleja mejor las distancias originales.
+
+### Propiedades de la Distancia Canberra
+
+1. **Definición Matemática**:
+   - La distancia Canberra calcula las diferencias absolutas entre las coordenadas de dos puntos, normalizadas por la suma de sus valores absolutos:
+     \[
+     d(x, y) = \sum_{i=1}^{n} \frac{|x_i - y_i|}{|x_i| + |y_i|}
+     \]
+   - Esto significa que cada componente contribuye proporcionalmente a la distancia total, dependiendo de su magnitud.
+
+2. **Sensibilidad a Diferencias Relativas**:
+   - A diferencia de otras métricas como la distancia euclidiana, la distancia Canberra presta especial atención a las diferencias relativas entre los valores, lo que la hace útil cuando las variables tienen diferentes escalas o rangos.
+
+3. **Manejo de Valores Pequeños**:
+  - Las dimensiones con valores pequeños tienen un mayor peso relativo en el cálculo, permitiendo que pequeñas diferencias en estas dimensiones influyan en la distancia total.
+
+### Contexto del Análisis
+
+En este análisis, los datos incluyen variables numéricas estandarizadas que presentan posibles outliers y diferentes escalas. Tras probar varias métricas de distancia, se observó que la distancia Canberra generó la correlación cofenética más alta (**0.7701**), indicando que proporciona la mejor representación de las relaciones entre las observaciones. Esto asegura que las diferencias relativas entre las observaciones sean capturadas de manera precisa, ofreciendo un análisis más robusto y representativo de la estructura de los datos.
+
+```{r}
+library(stats)
+distancias <- dist(datos_estandarizados, method = "canberra", diag = FALSE, upper =
+FALSE, p = 2)
+```
+
+### Análisis de Clúster
+
+### Método Jerárquico
+
+El método **Average** fue seleccionado para el análisis de clustering jerárquico porque ofrece un equilibrio entre cohesión interna y separación externa. Calcula las distancias entre clusters como el promedio de las distancias entre todas las observaciones de cada grupo, asegurando que todos los puntos sean considerados en la formación de los clusters.
+
+### Ventajas del Método Average
+
+1. **Equilibrio entre Cohesión y Separación**:
+   - Forma clusters balanceados, evitando los problemas de `single-linkage` (clusters alargados) y `complete-linkage` (clusters muy compactos).
+
+2. **Robustez frente a Outliers**:
+   - Es menos sensible a valores atípicos, ya que utiliza promedios en lugar de depender de un único par de puntos.
+
+3. **Resultados Consistentes**:
+   - Captura estructuras jerárquicas de forma representativa, incluso en datos complejos.
+
+
+```{r}
+library(cluster)
+hclust_model <- hclust(distancias, method = "average")
+plot(hclust_model, main = "Dendrograma", xlab = "Observaciones", sub = "Método de Average")
+```
+Podemos observar claramente 2 grupos.
+
+### Método K-means
+
+Se determina el número óptimo de clústeres mediante `NbClust` y se aplica k-means con 2 grupos.
+
+```{r}
+library(NbClust)
+nbclust.average <- NbClust(data = datos_estandarizados, 
+                           diss = NULL , 
+                           distance="canberra", 
+                           method ="average")
+print(nbclust.average$Best.nc)
+
+kmeans_model <- kmeans(datos_estandarizados, centers = 2, nstart = 50)
+library(factoextra)
+fviz_cluster(kmeans_model, data = datos_estandarizados)
+```
+### Interpretación del Gráfico de Clusters
+
+El gráfico mostrado representa los resultados del análisis de clustering utilizando el método **K-means** con 2 clusters, seleccionados como el número óptimo tras un análisis con el paquete `NbClust`. 
+
+### Proceso para Determinar el Número de Clusters
+
+1. **Uso de `NbClust`**:
+
+   - Se utilizó la función `NbClust` para evaluar el número óptimo de clusters en un rango de 2 a 15.
+   
+   - Esta herramienta aplica múltiples índices de validación y selecciona el número de clusters más adecuado basado en criterios de cohesión interna y separación entre clusters.
+
+2. **Selección de 2 Clusters**:
+
+   - La mayoría de los índices reportados por `NbClust` recomendaron **2 clusters**, lo que indica que esta es la partición más natural para los datos.
+
+### Aplicación del Método average
+
+  - Se aplicó el algoritmo average con 2 clusters utilizando 50 inicializaciones aleatorias para garantizar la estabilidad del resultado.
+
+  - El algoritmo asigna las observaciones a los clusters basándose en la distancia Canberra, minimizando la suma de las distancias al centroide dentro de cada cluster.
+
+### Interpretación del Gráfico
+
+1. **Dimensiones**:
+
+   - El gráfico proyecta las observaciones en un espacio bidimensional utilizando técnicas de reducción de dimensionalidad, como PCA, para facilitar la visualización.
+   
+   - La primera dimensión (Dim1) explica el 50.1% de la varianza y la segunda dimensión (Dim2) explica el 17.8%, lo que indica que estas dos dimensiones capturan la mayoría de la información relevante de los datos.
+
+2. **Clusters Identificados**:
+
+   - Los puntos se agrupan en dos clusters bien diferenciados:
+   
+     - **Cluster 1 (rojo):** Representa observaciones que comparten características comunes y están más cercanas a su centroide.
+     
+     - **Cluster 2 (azul):** Contiene observaciones con características distintas a las del Cluster 1.
+     
+   - Las áreas sombreadas muestran la región aproximada ocupada por cada cluster, proporcionando una clara separación visual entre ellos.
+
+3. **Separación y Cohesión**:
+
+   - La distancia entre los centroides indica una buena separación entre los clusters.
+   
+   - La cohesión dentro de los clusters es alta, como se observa en la proximidad de los puntos a sus respectivos centroides.
+
+
+## Evaluación y Comparación de Resultados
+
+### Resumen de Clústeres
+
+```{r}
+aggregate(datos, by = list(Cluster = kmeans_model$cluster), mean)
+table(kmeans_model$cluster)
+```
+Vemos como se forman los dos grupos o cluster uno con 51 datos y el otro con 49.
+
+### Validación
+
+```{r}
+library(cluster)
+cophenetic_corr <- cor(distancias, cophenetic(hclust_model))
+print(paste("Correlación cofenética:", cophenetic_corr))
+```
+La correlación cofenética mide qué tan bien el dendrograma refleja las distancias originales entre las observaciones. Un valor de 0.7701 indica una correspondencia alta, lo que significa que el dendrograma representa de manera fiel las relaciones de proximidad en los datos. Mientras más cerca esté de 1, mejor es la representación.
+
+
+### Visualización Adicional con PCA
+
+```{r}
+pca_result <- prcomp(datos_estandarizados)
+plot(pca_result$x[,1:2], col = kmeans_model$cluster, main = "PCA de los Clústeres", xlab = "PC1", ylab = "PC2")
+```
+
+```{r}
+pca_model <- prcomp(datos_estandarizados, scale. = TRUE)
+pca_data <- as.data.frame(pca_model$x[, 1:2]) 
+colnames(pca_data) <- c("PC1", "PC2")         
+pca_data$Cluster <- factor(kmeans_model$cluster, levels = c(1, 2), labels = c("Grupo 1", "Grupo 2"))
+colores <- c("Grupo 1" = "red", "Grupo 2" = "blue")
+ggplot(pca_data, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_color_manual(values = colores) +
+  labs(title = "PCA de los Clústeres", 
+       x = "Primera Componente Principal", 
+       y = "Segunda Componente Principal") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+## Interpretación del PCA de los Clústeres
+
+El gráfico muestra los resultados del análisis de componentes principales (PCA) aplicado a los datos, visualizando cómo las observaciones se agrupan en **dos clústeres** generados mediante un modelo de clustering (K-means). 
+
+### Descripción del Gráfico
+
+1. **Ejes del PCA**:
+   - El eje horizontal (Primera Componente Principal) explica la mayor parte de la variación en los datos.
+   - El eje vertical (Segunda Componente Principal) captura una cantidad adicional de la variación, aunque menor que la primera componente.
+
+2. **Distribución de los Clústeres**:
+   - **Clúster 1 (rojo)**: Observaciones mayormente distribuidas en la parte derecha del gráfico (valores positivos de PC1). Este grupo representa un conjunto de individuos con características similares que los diferencian claramente del Clúster 2.
+   - **Clúster 2 (azul)**: Observaciones localizadas principalmente en la parte izquierda del gráfico (valores negativos de PC1), indicando otro grupo homogéneo pero diferenciado del primero.
+
+3. **Separación de Clústeres**:
+   - Existe una separación visible entre los dos clústeres a lo largo del eje PC1, lo que sugiere que la Primera Componente Principal es clave para diferenciar estos grupos.
+
+4. **Líneas de Referencia**:
+   - Las líneas punteadas (vertical y horizontal) marcan el origen del espacio PCA, ayudando a interpretar las posiciones relativas de los puntos respecto a las componentes principales.
+
+
+
+
+## Conclusión
+
+El análisis de clustering realizado permitió identificar dos clústeres bien diferenciados en el conjunto de datos proporcionado. A continuación, se destacan los puntos más relevantes:
+
+1. **Selección de Métrica y Método**:
+
+   - Se probaron distintas métricas de distancia y métodos jerárquicos para determinar la mejor combinación utilizando la correlación cofenética como criterio de evaluación.
+   
+   - La combinación óptima fue la métrica de distancia **Canberra** junto con el método jerárquico **Average**, alcanzando una correlación cofenética de **0.7701**, lo que indica que el dendrograma refleja de manera fiel las distancias originales entre las observaciones.
+
+2. **Resultados del Clustering**:
+
+   - Los métodos jerárquicos y de partición (K-means) identificaron consistentemente **dos clústeres** principales en los datos.
+   
+   - El análisis de componentes principales (PCA) confirmó una clara separación entre estos dos grupos, mostrando diferencias significativas en las dimensiones clave.
+
+3. **Características de los Clústeres**:
+
+   - **Clúster 1**: Observaciones con menores valores promedio en las variables relacionadas con el rendimiento académico y la condición física.
+   
+   - **Clúster 2**: Observaciones con mayores valores promedio en las mismas variables, indicando un mejor desempeño general.
+
+
+4. **Robustez del Análisis**:
+
+   - La validación cruzada utilizando diferentes métodos y métricas confirmó la estabilidad y robustez de los resultados.
+   
+   - La correlación cofenética y los gráficos de PCA respaldan la calidad del agrupamiento.
+
+5. **Impacto del Preprocesamiento**:
+
+   - La estandarización de las variables numéricas fue esencial para asegurar que todas las dimensiones contribuyeran de manera equitativa al análisis.
+   
+   - La exclusión de variables no informativas, como `ID` y `Centro`, permitió mejorar la interpretabilidad de los resultados.
+
+
