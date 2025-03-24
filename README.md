@@ -7,25 +7,25 @@ Este repositorio recopila tareas y proyectos relevantes desarrollados durante el
 Los archivos están clasificados según los cuatro módulos principales del máster:
 
 ### 1. Herramientas matemáticas e informáticas
-- **Computación y Programación en R**
-- **Gestión de Bases de Datos** *(principalmente SQL)*
-- **Probabilidad y Simulación**
-- **Matemáticas para Bioestadística**
+- Computación y Programación en R
+- Gestión de Bases de Datos** *(principalmente SQL)
+- Probabilidad y Simulación
+- Matemáticas para Bioestadística
 
 ### 2. Estadística
-- **Inferencia Bayesiana**
-- **Minería de Datos**
-- **Planificación de la Investigación**
+- Inferencia Bayesiana
+- Minería de Datos
+- Planificación de la Investigación
 
 ### 3. Modelización estadística
-- **Modelos Lineales**
-- **Estadística Espacial**
-- **Series Temporales**
+- Modelos Lineales
+- Estadística Espacial
+- Series Temporales
 
 ### 4. Modelización avanzada
-- **Modelos de Suavizado, Aditivos y Mixtos**
-- **Modelos Jerárquicos Bayesianos**
-- **Modelos Lineales Generalizados**
+- Modelos de Suavizado, Aditivos y Mixtos
+- Modelos Jerárquicos Bayesianos
+- Modelos Lineales Generalizados
 
 ## 💻 Tecnologías utilizadas
 
