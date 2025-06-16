@@ -1,0 +1,361 @@
+---
+title: "TAREA MJB"
+author: "María Pallares Diez"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+En el banco de datos adjunto barcos.Rdata encontrarás 3 variables relacionadas con el mantenimiento de distintos barcos:
+
+• `y`: Número de incidentes técnicos de cada uno de los barcos de los que disponemos de información por los que ha sido necesario llevar a cabo alguna reparación durante los últimos 5 años.
+
+• `Tipo`: Tipo de embarcación (5 posibles categorías). Entre las embarcaciones disponibles tenemos embarcaciones históricas, naves de combate, embarcaciones pesqueras, recreativas y cargueros. Cada categoría corresponde a cada uno de estos tipos, siendo irrelevante qué etiqueta corresponde a cada una de estas categorías.
+
+• `Anyos`: Años desde la botadura del barco al inicio del periodo quinquenal del que disponemos datos. Para este banco de datos queremos estudiar el número de incidentes técnicos de estas embarcaciones en función de las características disponibles.
+
+Para el banco de datos anterior lleva a cabo las siguientes actividades:
+
+### **1.Modeliza el número de incidentes en las embarcaciones como función del número de años de las embarcaciones y del tipo de embarcación. Utiliza el modelo que te parezca oportuno (justifica la elección) y compara el modelo que contenga cada una de las variables por separado y las dos conjuntamente.**
+
+```{r,fig.width=10, fig.height=6}
+load("barcos.Rdata")
+head(barcos)
+summary(barcos)
+str(barcos)
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1)) # 1 fila, 3 columnas
+hist(barcos$y,
+     main = "Incidentes técnicos",
+     xlab = "Número de incidentes",
+     col = 4)
+hist(barcos$Anyos,
+     main = "Años desde botadura",
+     xlab = "Años",
+     col = 3)
+boxplot(y ~ Tipo,
+        data = barcos,
+        main = "Incidentes por tipo de barco",
+        xlab = "Tipo",
+        col = "lightblue")
+```
+
+Las gráficas resumen la estructura de la base de datos de incidentes técnicos en la flota de barcos.\
+
+En la primera, vemos que la mayoría de barcos han tenido pocos incidentes técnicos en los últimos años, aunque existen algunos casos con un número muy elevado, mostrando una fuerte asimetría a la derecha (presencia de valores extremos).\
+
+La segunda gráfica indica que la mayor parte de las embarcaciones son relativamente recientes (con pocos años desde su botadura), aunque también hay algunos barcos muy antiguos.\
+
+Finalmente, el boxplot revela diferencias claras según el tipo de barco: el **Tipo 2** destaca por tener un mayor número de incidentes y una mayor dispersión, mientras que los otros tipos presentan menos incidentes y menor variabilidad. Este patrón sugiere que tanto la antigüedad como el tipo de embarcación pueden ser factores relevantes en la explicación del número de incidentes técnicos.
+
+**Modelo 1: Poisson con años como única covariable**
+
+```{r, eval=FALSE}
+library(R2WinBUGS)
+
+Modelo1 <- function() {
+  for (i in 1:N) {
+    y[i] ~ dpois(lambda[i])
+    log(lambda[i]) <- beta0 + beta1 * Anyos[i]
+  }
+  beta0 ~ dflat()
+  beta1 ~ dflat()
+}
+
+datos1 <- list(
+  y = barcos$y,
+  Anyos = barcos$Anyos,
+  N = nrow(barcos)
+)
+
+iniciales1 <- function() {
+  list(beta0 = rnorm(1, 0, 1), beta1 = rnorm(1, 0, 1))
+}
+
+param1 <- c("beta0", "beta1")
+
+resul1 <- bugs(
+  data = datos1,
+  inits = iniciales1,
+  parameters.to.save = param1,
+  model.file = Modelo1,
+  n.chains = 3, n.iter = 6000, n.burnin = 1000
+)
+save(resul1, file = "resul1.Rdata")
+```
+
+```{r}
+load("resul1.Rdata")
+round(resul1$summary, 3)
+```
+
+**Modelo 2: Poisson con tipo de barco**
+
+```{r, eval=FALSE}
+Modelo2 <- function() {
+  for (i in 1:N) {
+    y[i] ~ dpois(lambda[i])
+    log(lambda[i]) <- beta0 + beta_tipo[Tipo[i]]
+  }
+  beta0 ~ dflat()
+  for (j in 2:nTipos) { beta_tipo[j] ~ dflat() }
+  beta_tipo[1] <- 0
+}
+
+datos2 <- list(
+  y = barcos$y,
+  Tipo = barcos$Tipo,
+  N = nrow(barcos),
+  nTipos = length(unique(barcos$Tipo))
+)
+
+iniciales2 <- function() {
+  list(beta0 = rnorm(1, 0, 1), beta_tipo = c(NA, rnorm(datos2$nTipos - 1, 0, 1)))
+}
+
+param2 <- c("beta0", "beta_tipo")
+
+resul2 <- bugs(
+  data = datos2,
+  inits = iniciales2,
+  parameters.to.save = param2,
+  model.file = Modelo2,
+  n.chains = 3, n.iter = 6000, n.burnin = 1000
+)
+
+save(resul2, file = "resul2.Rdata")
+```
+
+```{r}
+load("resul2.RData")
+round(resul2$summary, 3)
+```
+
+**Modelo 3: Poisson con años y tipo de barco**
+
+```{r, eval=FALSE}
+Modelo3 <- function() {
+  for (i in 1:N) {
+    y[i] ~ dpois(lambda[i])
+    log(lambda[i]) <- beta0 + beta1 * Anyos[i] + beta_tipo[Tipo[i]]
+  }
+  beta0 ~ dflat()
+  beta1 ~ dflat()
+  for (j in 2:nTipos) { beta_tipo[j] ~ dflat() }
+  beta_tipo[1] <- 0
+}
+
+datos3 <- list(
+  y = barcos$y,
+  Anyos = barcos$Anyos,
+  Tipo = barcos$Tipo,
+  N = nrow(barcos),
+  nTipos = length(unique(barcos$Tipo))
+)
+
+iniciales3 <- function() {
+  list(
+    beta0 = rnorm(1, 0, 1),
+    beta1 = rnorm(1, 0, 1),
+    beta_tipo = c(NA, rnorm(datos3$nTipos - 1, 0, 1))
+  )
+}
+
+param3 <- c("beta0", "beta1", "beta_tipo")
+
+resul3 <- bugs(
+  data = datos3,
+  inits = iniciales3,
+  parameters.to.save = param3,
+  model.file = Modelo3,
+  n.chains = 3, n.iter = 60000, n.burnin = 2000
+)
+
+save(resul3, file = "resul3.Rdata")
+```
+
+```{r}
+load("resul3.RData")
+round(resul3$summary, 3)
+```
+
+**Comparación:**
+
+```{r}
+c(resul1$DIC, resul2$DIC, resul3$DIC)
+```
+
+Tras comparar los tres modelos propuestos mediante el DIC, el modelo que incluye simultáneamente los años desde la botadura y el tipo de embarcación resulta ser el más adecuado para explicar el número de incidentes técnicos registrados en la flota. El valor de DIC para este modelo completo es 263.4, claramente inferior al obtenido en los modelos con sólo años (DIC = 410.8) o sólo tipo de barco (DIC = 278.4), lo que confirma que ambas variables aportan información relevante y complementaria.
+
+Al analizar los parámetros estimados por este modelo, se observa en primer lugar que el intercepto (`beta0`) tiene un valor medio de 1.755 (IC 95%: 1.44 a 2.06). Este valor representa el logaritmo del número esperado de incidentes técnicos para un barco de **Tipo 1** (grupo de referencia) recién botado (Anyos = 0).
+
+El efecto del tiempo desde la botadura (`beta1`) es positivo, con una media de 0.003 y un intervalo de credibilidad al 95% que no incluye el cero (0.002 a 0.004). Esto significa que, por cada año adicional desde la botadura, el número esperado de incidentes aumenta ligeramente, en torno a un 0.3% por año (ya que exp(0.003) aproximadamente 1.003). Aunque el efecto es pequeño, es sistemático y estadísticamente relevante, indicando que la antigüedad del barco contribuye a un mayor riesgo de incidentes técnicos.
+
+Respecto a los tipos de embarcación, los resultados muestran diferencias claras entre las categorías. Comparado con el **Tipo 1** (referencia), los barcos de **Tipo 2** presentan un incremento muy marcado en el número de incidentes (coeficiente 1.41, IC 95%: 1.04 a 1.80), lo que equivale a multiplicar por más de cuatro el número esperado de incidentes técnicos (exp(1.41) aproximadamente 4.1). Por el contrario, los **Tipos 3 y 4** presentan coeficientes negativos (-1.29 y -0.90, respectivamente), lo que implica un menor número de incidentes respecto al tipo de referencia (aproximadamente un 72% y un 59% menos, respectivamente). Para el **Tipo 5**, el coeficiente es cercano a cero (-0.12, IC 95%: -0.60 a 0.33), lo que indica que no se aprecian diferencias sustanciales con respecto al Tipo 1.
+
+En resumen, el análisis realizado evidencia que tanto la antigüedad como el tipo de embarcación influyen de manera significativa en el riesgo de incidentes técnicos en la flota. Los barcos de Tipo 2 destacan especialmente por su mayor propensión a incidentes, mientras que los Tipos 3 y 4 presentan un perfil mucho más seguro. Además, el envejecimiento de la embarcación supone un pequeño pero constante aumento del riesgo. Estos resultados pueden ser de utilidad tanto para tareas de prevención como para la gestión del mantenimiento en la flota.
+
+### **2.- Una vez ajustados los modelos anteriores consideramos que distintas condiciones particulares de cada embarcación no recogidas en los datos (astillero de fabricación, materiales,. . . ) podrían influir también sobre el número de incidentes técnicos de cada embarcación. De hecho dichas condiciones pueden haber producido sobredispersión en los modelos que hemos ajustado y que nos gustaría controlar. Considera, y modeliza, este factor partiendo del modelo completo de la tarea anterior.**
+
+Cuando los modelos de Poisson presentan una varianza mayor que la esperada según el propio modelo (es decir, **sobredispersión**), una causa habitual es la existencia de factores no medidos o condiciones particulares no recogidas en los datos (como astillero, materiales, mantenimiento, tripulación…). Para controlar este efecto, siguiendo la práctica habitual en Modelos Jerárquicos Bayesianos, **añadimos un efecto aleatorio específico para cada embarcación**. Así, permitimos que cada barco tenga un “riesgo base” diferente, modelizado mediante un intercepto aleatorio.
+
+Esto se traduce en un modelo de **regresión de Poisson con intercepto aleatorio por barco**.
+
+Modelo jerárquico propuesto:
+
+```{r, eval=FALSE}
+Modelo_aleatorio <- function() {
+  for (i in 1:N) {
+    y[i] ~ dpois(lambda[i])
+    log(lambda[i]) <- beta0 + beta1 * Anyos[i] + beta_tipo[Tipo[i]] + u[i]
+    u[i] ~ dnorm(0, tau_u)
+  }
+  beta0 ~ dflat()
+  beta1 ~ dflat()
+  for (j in 2:nTipos) { beta_tipo[j] ~ dflat() }
+  beta_tipo[1] <- 0
+  tau_u <- pow(sd_u, -2)
+  sd_u ~ dunif(0, 100)
+}
+datos_aleatorio <- list(
+  y = barcos$y,
+  Anyos = barcos$Anyos,
+  Tipo = barcos$Tipo,
+  N = nrow(barcos),
+  nTipos = length(unique(barcos$Tipo))
+)
+
+iniciales_aleatorio <- function() {
+  list(
+    beta0 = rnorm(1, 0, 1),
+    beta1 = rnorm(1, 0, 1),
+    beta_tipo = c(NA, rnorm(datos_aleatorio$nTipos - 1, 0, 1)),
+    u = rnorm(datos_aleatorio$N, 0, 0.1),
+    sd_u = runif(1, 0, 1)
+  )
+}
+
+param_aleatorio <- c("beta0", "beta1", "beta_tipo", "sd_u", "u", "deviance")
+
+resul_aleatorio <- bugs(
+  data = datos_aleatorio,
+  inits = iniciales_aleatorio,
+  parameters.to.save = param_aleatorio,
+  model.file = Modelo_aleatorio,
+  n.chains = 3, n.iter = 5000000, n.burnin = 700000
+)
+print(resul_aleatorio, digits=3)
+save(resul_aleatorio, file = "resul_aleatorio.Rdata")
+```
+
+```{r}
+load("resul_aleatorio.Rdata")
+round(resul_aleatorio$summary, 3)
+c(resul3$DIC, resul_aleatorio$DIC)
+```
+
+Tras ajustar el modelo jerárquico de Poisson con efectos aleatorios específicos para cada barco, observamos que el **DIC** de este modelo es **162.0**, lo que supone una **reducción drástica** respecto al DIC del modelo fijo anterior (263.4). Esta diferencia (superior a 100 puntos) indica que el modelo jerárquico captura mucho mejor la variabilidad real observada en los datos. Además, el número de parámetros efectivos (`pD = 26.0`) refleja el aumento en flexibilidad que aporta el intercepto aleatorio por barco.
+
+En este modelo, el parámetro **`sd_u`** estima la desviación típica de los efectos aleatorios asociados a cada embarcación, con un valor medio de **1.17** (IC 95%: 0.72 a 1.83). Este resultado confirma la presencia de **una importante heterogeneidad entre barcos** que no queda explicada por los años desde la botadura ni por el tipo de barco, y que justifica plenamente la introducción del efecto aleatorio (sobredispersión).
+
+Los coeficientes de las covariables principales mantienen la interpretación, aunque su valor y precisión pueden variar al ajustar por esta nueva fuente de variabilidad:
+
+-   El efecto de los años (`beta1`) permanece positivo (**0.006**, IC 95%: -0.004 a 0.017), pero con mayor incertidumbre y ahora el intervalo de credibilidad incluye el 0, por lo que el efecto no es tan concluyente como en el modelo anterior.
+
+-   Los efectos de tipo de barco (`beta_tipo`) también presentan mayor incertidumbre, reflejando que parte de la variabilidad atribuida antes a las diferencias entre tipos ahora es absorbida por las diferencias individuales no explicadas entre barcos.
+
+El valor estimado de cada efecto aleatorio (`u[i]`) recoge las particularidades de cada barco que influyen en su propensión a incidentes técnicos, como podrían ser el astillero, materiales de construcción, historial de mantenimiento, etc.
+
+**El modelo jerárquico con efectos aleatorios se ajusta mucho mejor a los datos y permite controlar la sobredispersión presente, mejorando la capacidad predictiva y la fiabilidad de las inferencias. La variabilidad extra detectada entre barcos es sustancial, y su consideración resulta esencial para una descripción realista del fenómeno.**
+
+Por tanto, **es mejor el uso de este modelo mixto en el análisis**, ya que recoge tanto los efectos de las covariables observadas como la heterogeneidad no explicada, y ofrece una base más sólida para la predicción y para el diseño de estrategias de mantenimiento y prevención de incidentes en la flota.
+
+### 3.- Calcula la distribución predictiva de todos los individuos con el modelo de la tarea 2 y con el modelo completo de la tarea 1 y compara, a partir de estas distribuciones predictivas cuál de los modelos produce un mejor ajuste. Calcula también los residuos con ambos modelos y comenta cuál te parece más adecuado en cuanto al comportamiento de los residuos
+
+Para obtener la distribución predictiva de cada barco, hemos utilizado las muestras posteriores de los parámetros generadas por WinBUGS en cada modelo. Para cada simulación, calculamos la media esperada de incidentes (`lambda`) combinando el intercepto, el efecto de los años, el efecto correspondiente al tipo de barco y, en el caso del modelo mixto, el efecto aleatorio específico de cada barco. A partir de estos valores de `lambda`, generamos simulaciones de recuentos incidentes mediante la función de Poisson, obteniendo así una distribución predictiva completa para cada individuo. De este modo, podemos calcular medias, intervalos creíbles y analizar la adecuación del modelo de forma bayesiana, sin necesidad de volver a ejecutar WinBUGS.
+
+**Pred Modelo fijo: Anyos + Tipo**
+
+```{r}
+beta_tipo_fijo <- cbind(0, resul3$sims.list$beta_tipo) 
+beta_tipo_mat <- beta_tipo_fijo[, barcos$Tipo]  
+lambda_fijo <- exp(
+  resul3$sims.list$beta0 +
+  outer(resul3$sims.list$beta1, barcos$Anyos) +
+  beta_tipo_mat
+)
+set.seed(123)
+y_pred_fijo <- matrix(
+  rpois(length(lambda_fijo), lambda_fijo),
+  ncol = ncol(lambda_fijo)
+)
+# Media y percentiles para cada barco
+pred_fijo_mean <- apply(y_pred_fijo, 2, mean)
+pred_fijo_lo <- apply(y_pred_fijo, 2, quantile, 0.025)
+pred_fijo_hi <- apply(y_pred_fijo, 2, quantile, 0.975)
+
+```
+
+**Pred Modelo mixto: Anyos + Tipo + efecto aleatorio**
+
+```{r}
+beta_tipo_mixto <- cbind(0, resul_aleatorio$sims.list$beta_tipo)
+beta_tipo_mixto_mat <- beta_tipo_mixto[, barcos$Tipo]
+lambda_mixto <- exp(
+  resul_aleatorio$sims.list$beta0 +
+  outer(resul_aleatorio$sims.list$beta1, barcos$Anyos) +
+  beta_tipo_mixto_mat +
+  resul_aleatorio$sims.list$u
+)
+set.seed(123)
+y_pred_mixto <- matrix(
+  rpois(length(lambda_mixto), lambda_mixto),
+  ncol = ncol(lambda_mixto)
+)
+# Media y percentiles para cada barco
+pred_mixto_mean <- apply(y_pred_mixto, 2, mean)
+pred_mixto_lo <- apply(y_pred_mixto, 2, quantile, 0.025)
+pred_mixto_hi <- apply(y_pred_mixto, 2, quantile, 0.975)
+
+```
+
+**Residuos**
+
+```{r}
+# Residuos simples (observado - predicho medio)
+residuos_fijo <- barcos$y - pred_fijo_mean
+residuos_mixto <- barcos$y - pred_mixto_mean
+
+```
+
+**Gráfico**
+
+```{r,fig.width=10, fig.height=6}
+par(mfrow=c(1,2))
+plot(barcos$y, pred_fijo_mean, main="Predicho Fijo", xlab="Observado", ylab="Predicho")
+abline(0,1)
+plot(barcos$y, pred_mixto_mean, main="Predicho Mixto", xlab="Observado", ylab="Predicho")
+abline(0,1)
+par(mfrow=c(1,2))
+hist(residuos_fijo, main="Residuos Fijo", col=4, breaks=10)
+hist(residuos_mixto, main="Residuos Mixto", col=2, breaks=10)
+
+```
+
+### **Ajuste predictivo**
+
+En la primera fila de gráficos (“Predicho Fijo” y “Predicho Mixto”) se compara, para cada barco, el número de incidentes observados frente al valor predicho por cada modelo.
+
+-    **Modelo fijo:** Se observa que los puntos tienden a dispersarse lejos de la recta de identidad (y = x), especialmente para los barcos con muchos incidentes. El modelo sistemáticamente **subestima** los valores elevados y sobreestima algunos valores bajos, mostrando un ajuste global pobre y una incapacidad para captar la variabilidad real.
+
+-   **Modelo mixto:** Prácticamente todos los puntos se alinean sobre la diagonal, mostrando un ajuste casi perfecto barco a barco. El modelo mixto (con efectos aleatorios) es capaz de adaptar la predicción a cada embarcación y recoge adecuadamente tanto los barcos con pocos como con muchos incidentes.
+
+### **Residuos**
+
+En la segunda fila de gráficos se presentan los histogramas de residuos para ambos modelos:
+
+-   **Modelo fijo:** Los residuos muestran una dispersión notable, con valores extremos tanto negativos como positivos, y una clara asimetría. Este patrón indica que el modelo no ajusta bien los datos y que existe sobredispersión no explicada.
+
+-   **Modelo mixto:** Los residuos están mucho más concentrados alrededor de cero, distribuidos de forma más simétrica y sin valores atípicos evidentes. Esto refleja un ajuste mucho mejor y la capacidad del modelo para absorber la variabilidad individual de cada barco.

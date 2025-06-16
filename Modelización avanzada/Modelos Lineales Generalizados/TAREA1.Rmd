@@ -1,0 +1,379 @@
+---
+title: "TAREA 1"
+author: "María Pallares Diez"
+date: "2025-04-19"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(titanic)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+
+
+
+
+```{r message=FALSE, warning=FALSE}
+# Cargar la librería
+library(haven)
+
+# Leer el archivo
+ships <- read_sav("ships.sav")
+
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+modelo_poisson <- glm(
+  damage_incidents ~ factor(type) + factor(construction) + factor(operation),
+  family = poisson(link = "log"),
+  offset = log_months_service,
+  data = ships
+)
+
+summary(modelo_poisson)
+
+
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+# Cargar paquetes necesarios
+library(haven)
+library(dplyr)
+library(ggplot2)
+library(MASS)
+library(AER)
+# ---------------------------
+# Evaluación del modelo
+# ---------------------------
+
+# Resumen de coeficientes
+summary(modelo_poisson)
+
+# Análisis de la devianza
+anova(modelo_poisson, test = "Chisq")
+
+# Deviance nula y deviance residual
+modelo_poisson$null.deviance    # modelo sin predictores
+modelo_poisson$deviance         # modelo ajustado
+modelo_poisson$df.null          # gl modelo nulo
+modelo_poisson$df.residual      # gl modelo ajustado
+
+# AIC del modelo
+AIC(modelo_poisson)
+
+# Proporción de deviance explicada (similar a R²)
+1 - modelo_poisson$deviance / modelo_poisson$null.deviance
+
+# Test de ajuste global (p-valor de la deviance residual)
+pchisq(modelo_poisson$deviance, df = modelo_poisson$df.residual, lower.tail = FALSE)
+
+# Test formal de sobredispersión
+dispersiontest(modelo_poisson)
+
+# ---------------------------
+# Análisis de residuos
+# ---------------------------
+
+# Residuos
+res_dev <- residuals(modelo_poisson, type = "deviance")
+res_pearson <- residuals(modelo_poisson, type = "pearson")
+
+# Gráfico: residuos de deviance vs valores ajustados
+plot(fitted(modelo_poisson), res_dev,
+     xlab = "Valores ajustados",
+     ylab = "Residuos de devianza",
+     main = "Residuos de devianza vs Valores ajustados")
+abline(h = 0, col = "red")
+
+# Histograma de residuos
+hist(res_dev, main = "Histograma de residuos de devianza", col = "gray")
+
+# Gráfico Q-Q de residuos de deviance
+qqnorm(res_dev)
+qqline(res_dev, col = "red")
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# Modelo GLM con interacción type * construction, manteniendo el offset
+modelo_interaccion <- glm(
+  damage_incidents ~ factor(type) * factor(construction) + factor(operation),
+  family = poisson(link = "log"),
+  offset = log_months_service,
+  data = ships
+)
+
+# Resumen del nuevo modelo
+summary(modelo_interaccion)
+
+# Comparar modelos: original vs con interacción
+anova(modelo_poisson, modelo_interaccion, test = "Chisq")
+
+# Comparar AIC
+AIC(modelo_poisson, modelo_interaccion)
+
+# Proporción de deviance explicada por el nuevo modelo
+1 - modelo_interaccion$deviance / modelo_interaccion$null.deviance
+
+# Diagnóstico de sobredispersión
+res_pearson_inter <- residuals(modelo_interaccion, type = "pearson")
+phi_inter <- sum(res_pearson_inter^2) / modelo_interaccion$df.residual
+phi_inter
+
+# Test formal de sobredispersión
+library(AER)
+dispersiontest(modelo_interaccion)
+
+# Gráficos de diagnóstico del nuevo modelo
+par(mfrow = c(1, 3))
+
+# Residuos vs valores ajustados
+plot(fitted(modelo_interaccion), residuals(modelo_interaccion, type = "deviance"),
+     xlab = "Valores ajustados", ylab = "Residuos de devianza",
+     main = "Residuos vs Ajustados")
+abline(h = 0, col = "red")
+
+# Histograma de residuos
+hist(residuals(modelo_interaccion, type = "deviance"),
+     main = "Histograma de residuos", col = "gray")
+
+# Q-Q plot
+qqnorm(residuals(modelo_interaccion, type = "deviance"))
+qqline(residuals(modelo_interaccion, type = "deviance"), col = "red")
+
+par(mfrow = c(1, 1))
+
+
+```
+
+```{r message=FALSE, warning=FALSE}
+# Modelo GLM con todas las interacciones de primer orden
+modelo_interaccion <- glm(
+  damage_incidents ~ factor(type) * factor(construction) +
+                     factor(type) * factor(operation) +
+                     factor(construction) * factor(operation),
+  family = poisson(link = "log"),
+  offset = log_months_service,
+  data = ships
+)
+
+# Resumen del nuevo modelo
+summary(modelo_interaccion)
+
+# Comparar modelos: original vs con interacciones
+anova(modelo_poisson, modelo_interaccion, test = "Chisq")
+
+# Comparar AIC
+AIC(modelo_poisson, modelo_interaccion)
+
+# Proporción de deviance explicada por el nuevo modelo
+1 - modelo_interaccion$deviance / modelo_interaccion$null.deviance
+
+# Diagnóstico de sobredispersión
+res_pearson_inter <- residuals(modelo_interaccion, type = "pearson")
+phi_inter <- sum(res_pearson_inter^2) / modelo_interaccion$df.residual
+phi_inter
+
+# Test formal de sobredispersión
+library(AER)
+dispersiontest(modelo_interaccion)
+
+# Gráficos de diagnóstico del nuevo modelo
+par(mfrow = c(1, 3))
+
+# Residuos vs valores ajustados
+plot(fitted(modelo_interaccion), residuals(modelo_interaccion, type = "deviance"),
+     xlab = "Valores ajustados", ylab = "Residuos de devianza",
+     main = "Residuos vs Ajustados")
+abline(h = 0, col = "red")
+
+# Histograma de residuos
+hist(residuals(modelo_interaccion, type = "deviance"),
+     main = "Histograma de residuos", col = "gray")
+
+# Q-Q plot
+qqnorm(residuals(modelo_interaccion, type = "deviance"))
+qqline(residuals(modelo_interaccion, type = "deviance"), col = "red")
+
+par(mfrow = c(1, 1))
+
+# 1. Cociente de sobredispersión (phi) usando residuos de Pearson
+res_pearson <- residuals(modelo_interaccion, type = "pearson")
+phi <- sum(res_pearson^2) / modelo_interaccion$df.residual
+phi  # Valor esperado ≈ 1 en un modelo de Poisson bien especificado
+
+# 2. Test formal de sobredispersión
+# Instala el paquete si no lo tienes
+# install.packages("AER")
+
+library(AER)
+dispersiontest(modelo_interaccion)
+
+```
+
+```{r message=FALSE, warning=FALSE}
+# 1. Comparación de AIC
+AIC(modelo_poisson, modelo_interaccion)
+
+# 2. Test de razón de verosimilitud (ANOVA)
+anova(modelo_poisson, modelo_interaccion, test = "Chisq")
+
+# 3. Proporción de devianza explicada
+prop_dev_inicial <- 1 - modelo_poisson$deviance / modelo_poisson$null.deviance
+prop_dev_inter <- 1 - modelo_interaccion$deviance / modelo_interaccion$null.deviance
+prop_dev_inicial
+prop_dev_inter
+
+# 4. Sobredispersión
+
+# Para el modelo inicial
+phi_inicial <- sum(residuals(modelo_poisson, type = "pearson")^2) / modelo_poisson$df.residual
+
+# Para el modelo con interacciones
+phi_inter <- sum(residuals(modelo_interaccion, type = "pearson")^2) / modelo_interaccion$df.residual
+
+# Mostrar ambos valores
+phi_inicial
+phi_inter
+
+# Test formal de sobredispersión con AER
+library(AER)
+dispersiontest(modelo_poisson)
+dispersiontest(modelo_interaccion)
+
+# 5. Gráficos comparativos de residuos devianza
+par(mfrow = c(2, 3))
+
+# Modelo inicial
+plot(fitted(modelo_poisson), residuals(modelo_poisson, type = "deviance"),
+     main = "Inicial: Residuos vs Ajustados", xlab = "Ajustados", ylab = "Residuos")
+abline(h = 0, col = "red")
+
+hist(residuals(modelo_poisson, type = "deviance"),
+     main = "Inicial: Histograma de residuos", col = "gray")
+
+qqnorm(residuals(modelo_poisson, type = "deviance"),
+       main = "Inicial: Q-Q plot")
+qqline(residuals(modelo_poisson, type = "deviance"), col = "red")
+
+# Modelo con interacciones
+plot(fitted(modelo_interaccion), residuals(modelo_interaccion, type = "deviance"),
+     main = "Interacción: Residuos vs Ajustados", xlab = "Ajustados", ylab = "Residuos")
+abline(h = 0, col = "red")
+
+hist(residuals(modelo_interaccion, type = "deviance"),
+     main = "Interacción: Histograma de residuos", col = "gray")
+
+qqnorm(residuals(modelo_interaccion, type = "deviance"),
+       main = "Interacción: Q-Q plot")
+qqline(residuals(modelo_interaccion, type = "deviance"), col = "red")
+
+par(mfrow = c(1, 1))  # restaurar
+
+```
+
+```{r message=FALSE, warning=FALSE}
+# Modelo nulo: solo intercepto y offset (sin covariables)
+modelo_nulo <- glm(
+  damage_incidents ~ 1,
+  family = poisson(link = "log"),
+  offset = log_months_service,
+  data = ships
+)
+
+# Resumen del modelo nulo
+summary(modelo_nulo)
+
+# AIC del modelo nulo
+AIC(modelo_nulo)
+
+# Deviance del modelo nulo
+modelo_nulo$deviance
+modelo_nulo$df.residual
+
+```
+
+## 
+
+```{r message=FALSE, warning=FALSE}
+library(boot)
+
+# Validación cruzada leave-one-out
+cv_nulo <- cv.glm(ships, modelo_nulo, K = nrow(ships_clean))
+cv_inicial <- cv.glm(ships, modelo_poisson, K = nrow(ships_clean))
+cv_inter <- cv.glm(ships, modelo_interaccion, K = nrow(ships_clean))
+
+# Error de predicción promedio (delta[1])
+cv_nulo$delta[1]
+cv_inicial$delta[1]
+cv_inter$delta[1]
+```
+
+
+
+## 
+
+```{r message=FALSE, warning=FALSE}
+library(boot)
+# Crear dataset limpio (usado por los modelos)
+ships_clean <- na.omit(ships)
+
+# Reajustar los modelos sobre el dataset limpio
+modelo_nulo_clean <- glm(damage_incidents ~ 1,
+                         family = poisson(link = "log"),
+                         offset = log_months_service,
+                         data = ships_clean)
+
+modelo_poisson_clean <- glm(damage_incidents ~ factor(type) + factor(construction) + factor(operation),
+                            family = poisson(link = "log"),
+                            offset = log_months_service,
+                            data = ships_clean)
+
+modelo_inter_clean <- glm(damage_incidents ~ factor(type) * factor(construction) +
+                                            factor(type) * factor(operation) +
+                                            factor(construction) * factor(operation),
+                          family = poisson(link = "log"),
+                          offset = log_months_service,
+                          data = ships_clean)
+
+# Validación cruzada leave-one-out (n = 34 - 6 = 28)
+cv_nulo <- cv.glm(ships_clean, modelo_nulo_clean)
+cv_inicial <- cv.glm(ships_clean, modelo_poisson_clean)
+cv_inter <- cv.glm(ships_clean, modelo_inter_clean)
+
+# Mostrar errores de predicción promedio
+cv_nulo$delta[1]
+cv_inicial$delta[1]
+cv_inter$delta[1]
+
+```
+
+
+
+## 
+
+```{r message=FALSE, warning=FALSE}
+ships <- ships %>%
+  mutate(
+    type = factor(type),
+    construction = factor(construction),
+    operation = factor(operation)
+  )
+
+
+nuevos_datos <- data.frame(
+  type = factor(c(1, 4), levels = levels(ships$type)),
+  construction = factor(c(60, 70), levels = levels(ships$construction)),
+  operation = factor(c(60, 75), levels = levels(ships$operation)),
+  log_months_service = log(c(10000, 2000))
+)
+
+predict(modelo_poisson_clean, newdata = nuevos_datos, type = "response")
+```

@@ -1,0 +1,111 @@
+---
+title: "demo8"
+author: "María Pallares Diez"
+date: "2025-05-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## EJERCICIO 1: Modelo gamm con datos Orthodont
+
+Paso 1: Carga y preparación de los datos
+
+```{r}
+library(pacman)
+pacman::p_load(mgcv, performance, lme4, ggplot2, itsadug, tidyverse)
+
+load("Orthodont.RData")
+Orth <- Orthodont %>% mutate(
+  Subject = factor(Subject),
+  Sex = factor(Sex),
+  age11 = age - 11
+)
+
+```
+
+Paso 2: Ajuste del modelo con gam
+Modelo con intercepto aleatorio por individuo y efectos fijos:
+
+```{r}
+mod_gamm <- gam(distance ~ Sex*age11 + s(Subject, bs="re"),
+                data=Orth, method="REML")
+summary(mod_gamm)
+
+```
+
+Paso 3: Comparación con glmer (modelo de la sesión anterior)
+
+```{r}
+library(lme4)
+
+mod_glmer <- glmer(distance ~ Sex*age11 + (1 | Subject),
+                   data = Orth)
+library(performance)
+r2(mod_glmer)        # pseudo-R² de glmer
+summary(mod_glmer)
+
+```
+
+Representación gráfica
+```{r}
+plot_smooth(mod_gamm, view="age11", cond=list(Sex="Male"),
+            col="#3C8BCD", rug=FALSE, se=TRUE, main="Masculino")
+
+plot_smooth(mod_gamm, view="age11", cond=list(Sex="Female"),
+            col="#F5191C", rug=FALSE, se=TRUE, main="Femenino")
+
+plot_smooth(mod_gamm, view="age11", plot_all="Subject",
+            col=alpha("gray50",0.3), main="Curvas por sujeto")
+
+```
+
+
+
+##  EJERCICIO 2: Búhos (Owls)
+
+Paso 1: Preparación
+
+```{r}
+library(MASS)
+load("Owls.RData")
+Owls <- Owls %>%
+  mutate(
+    Nest = factor(Nest),
+    FoodTreatment = factor(FoodTreatment),
+    SexParent = factor(SexParent)
+  )
+
+```
+
+Paso 2: Ajuste del modelo con offset
+
+```{r}
+# Ajuste de modelo Poisson con offset por tamaño de nidada
+gam_owl1 <- gam(SiblingNegotiation ~ s(ArrivalTime) + offset(log(BroodSize)) + 
+                s(Nest, bs="re"), family=poisson(link="log"), data=Owls)
+
+summary(gam_owl1)
+
+```
+
+Visualización:
+```{r}
+plot(gam_owl1, select = 1, shade = TRUE)
+```
+
+Paso 3: Modelo inverso (reacción como respuesta)
+
+```{r}
+gam_owl2 <- gam(ArrivalTime ~ s(NegPerChick) + s(Nest, bs="re"),
+                data=Owls, method="REML")
+
+summary(gam_owl2)
+plot_smooth(gam_owl2, view="NegPerChick", se=TRUE)
+
+```
+
+
+
